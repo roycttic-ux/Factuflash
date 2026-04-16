@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FacturaYa — Sistema de Facturación y Stock Pro</title>
+  <meta name="description" content="FacturaYa es el sistema de facturación todo-en-uno para PYMES argentinas. Control de stock, sincronización con el dólar, facturación electrónica con AFIP y más." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0f1e;
+      --surface: #111827;
+      --card: #1a2236;
+      --border: #1e2d4a;
+      --accent: #3b82f6;
+      --accent2: #8b5cf6;
+      --accent3: #06d6a0;
+      --text: #f0f4ff;
+      --muted: #94a3b8;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Outfit', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      top: -20%; left: -10%;
+      width: 60vw; height: 60vw;
+      background: radial-gradient(circle, rgba(59,130,246,0.08) 0%, transparent 70%);
+      pointer-events: none; z-index: 0;
+    }
+    body::after {
+      content: '';
+      position: fixed;
+      bottom: -20%; right: -10%;
+      width: 50vw; height: 50vw;
+      background: radial-gradient(circle, rgba(139,92,246,0.07) 0%, transparent 70%);
+      pointer-events: none; z-index: 0;
+    }
+
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 1.2rem 2rem;
+      background: rgba(10,15,30,0.85);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .logo {
+      font-size: 1.5rem; font-weight: 800;
+      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+
+    .nav-links { display: flex; gap: 1rem; align-items: center; }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      padding: 0.6rem 1.4rem; border-radius: 10px;
+      font-weight: 600; font-size: 0.95rem;
+      text-decoration: none; transition: all 0.2s ease;
+      cursor: pointer; border: none;
+    }
+    .btn-ghost { color: var(--muted); background: transparent; }
+    .btn-ghost:hover { color: var(--text); }
+    .btn-primary {
+      background: linear-gradient(135deg, #3b82f6, #6366f1); color: white;
+      box-shadow: 0 0 20px rgba(59,130,246,0.35);
+    }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 0 30px rgba(59,130,246,0.5); }
+    .btn-outline { color: var(--text); background: transparent; border: 1px solid var(--border); }
+    .btn-outline:hover { border-color: var(--accent); color: var(--accent); background: rgba(59,130,246,0.06); }
+
+    .hero {
+      position: relative; z-index: 1; min-height: 100vh;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      text-align: center; padding: 8rem 2rem 4rem;
+    }
+
+    .badge {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.3);
+      color: #60a5fa; padding: 0.4rem 1rem; border-radius: 99px;
+      font-size: 0.85rem; font-weight: 500; margin-bottom: 2rem;
+      animation: fadeInDown 0.6s ease;
+    }
+
+    .hero h1 {
+      font-size: clamp(2.5rem, 7vw, 5rem); font-weight: 900;
+      line-height: 1.1; margin-bottom: 1.5rem;
+      animation: fadeInUp 0.6s ease 0.1s both;
+    }
+
+    .gradient-text {
+      background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 50%, #06d6a0 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+
+    .hero p {
+      font-size: 1.2rem; color: var(--muted); max-width: 600px;
+      margin: 0 auto 2.5rem; animation: fadeInUp 0.6s ease 0.2s both;
+    }
+
+    .hero-cta { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; animation: fadeInUp 0.6s ease 0.3s both; }
+    .hero-cta .btn-primary { padding: 0.85rem 2rem; font-size: 1.05rem; }
+
+    .stats-bar {
+      position: relative; z-index: 1;
+      display: flex; justify-content: center; gap: 3rem; flex-wrap: wrap;
+      padding: 2rem; background: var(--card);
+      border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+    }
+    .stat { text-align: center; }
+    .stat-value {
+      font-size: 2rem; font-weight: 800;
+      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    .stat-label { color: var(--muted); font-size: 0.9rem; }
+
+    section { position: relative; z-index: 1; padding: 6rem 2rem; }
+    .section-header { text-align: center; margin-bottom: 4rem; }
+    .section-header h2 { font-size: clamp(1.8rem, 4vw, 2.8rem); font-weight: 800; margin-bottom: 1rem; }
+    .section-header p { color: var(--muted); font-size: 1.1rem; max-width: 500px; margin: 0 auto; }
+
+    .features-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.5rem; max-width: 1100px; margin: 0 auto;
+    }
+
+    .feature-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 16px; padding: 2rem; transition: all 0.3s ease;
+    }
+    .feature-card:hover { transform: translateY(-4px); border-color: rgba(59,130,246,0.4); box-shadow: 0 8px 40px rgba(59,130,246,0.1); }
+    .feature-icon { font-size: 2.2rem; margin-bottom: 1rem; }
+    .feature-card h3 { font-size: 1.2rem; font-weight: 700; margin-bottom: 0.6rem; }
+    .feature-card p { color: var(--muted); font-size: 0.95rem; }
+
+    .pricing-box {
+      max-width: 480px; margin: 0 auto;
+      background: var(--card); border: 1px solid rgba(139,92,246,0.4);
+      border-radius: 24px; padding: 3rem; text-align: center;
+      box-shadow: 0 0 80px rgba(139,92,246,0.1);
+    }
+    .price-badge {
+      display: inline-block;
+      background: linear-gradient(135deg, #3b82f6, #8b5cf6); color: white;
+      padding: 0.3rem 1rem; border-radius: 99px; font-size: 0.85rem; font-weight: 600; margin-bottom: 1.5rem;
+    }
+    .price { font-size: 3.5rem; font-weight: 900; line-height: 1; margin-bottom: 0.5rem; }
+    .price span { font-size: 1.2rem; font-weight: 400; color: var(--muted); }
+
+    .price-features { list-style: none; text-align: left; margin: 2rem 0; }
+    .price-features li {
+      display: flex; align-items: center; gap: 0.75rem;
+      padding: 0.5rem 0; color: var(--muted);
+      border-bottom: 1px solid var(--border); font-size: 0.95rem;
+    }
+    .price-features li:last-child { border-bottom: none; }
+    .check { color: var(--accent3); font-size: 1.1rem; }
+
+    .cta-section {
+      background: linear-gradient(135deg, rgba(59,130,246,0.1), rgba(139,92,246,0.1));
+      border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+      text-align: center;
+    }
+    .cta-section h2 { font-size: clamp(1.8rem, 4vw, 2.8rem); font-weight: 800; margin-bottom: 1rem; }
+    .cta-section p { color: var(--muted); margin-bottom: 2rem; font-size: 1.1rem; }
+
+    footer {
+      position: relative; z-index: 1; text-align: center;
+      padding: 2.5rem 2rem; color: var(--muted); font-size: 0.9rem;
+      border-top: 1px solid var(--border);
+    }
+    footer a { color: var(--accent); text-decoration: none; }
+
+    @keyframes fadeInDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+    @media (max-width: 640px) {
+      .nav-links .btn-ghost { display: none; }
+      .stats-bar { gap: 1.5rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <div class="logo">⚡ FacturaYa</div>
+    <div class="nav-links">
+      <a href="#features" class="btn btn-ghost">Funciones</a>
+      <a href="#pricing" class="btn btn-ghost">Precios</a>
+      <a href="./frontend/dist/#/login" class="btn btn-outline">Ingresar</a>
+      <a href="./frontend/dist/#/register" class="btn btn-primary">Probar Gratis</a>
+    </div>
+  </nav>
+
+  <section class="hero">
+    <div class="badge">🇦🇷 Hecho para PYMES argentinas</div>
+    <h1>Facturá más rápido,<br><span class="gradient-text">ganás más tiempo.</span></h1>
+    <p>El sistema todo-en-uno para gestionar tu stock, emitir facturas electrónicas con AFIP y cobrar con Mercado Pago. Sin complicaciones.</p>
+    <div class="hero-cta">
+      <a href="./frontend/dist/#/register" class="btn btn-primary">🚀 Empezar ahora — 7 días gratis</a>
+      <a href="#features" class="btn btn-outline">Ver funciones</a>
+    </div>
+  </section>
+
+  <div class="stats-bar">
+    <div class="stat"><div class="stat-value">7 días</div><div class="stat-label">Prueba gratuita completa</div></div>
+    <div class="stat"><div class="stat-value">100%</div><div class="stat-label">Compatible con AFIP / ARCA</div></div>
+    <div class="stat"><div class="stat-value">∞</div><div class="stat-label">Facturas y productos sin límite</div></div>
+    <div class="stat"><div class="stat-value">$USD</div><div class="stat-label">Precios sincronizados al dólar</div></div>
+  </div>
+
+  <section id="features">
+    <div class="section-header">
+      <h2>Todo lo que tu negocio necesita</h2>
+      <p>Un único plan. Todas las funciones. Sin sorpresas.</p>
+    </div>
+    <div class="features-grid">
+      <div class="feature-card"><div class="feature-icon">🧾</div><h3>Facturación Electrónica</h3><p>Generá comprobantes A, B y C conectados a AFIP/ARCA directamente desde el sistema.</p></div>
+      <div class="feature-card"><div class="feature-icon">📦</div><h3>Control de Stock</h3><p>Gestioná tu inventario con alertas automáticas cuando el stock baje del umbral crítico.</p></div>
+      <div class="feature-card"><div class="feature-icon">💵</div><h3>Sincronización Dollar</h3><p>Tus precios en pesos se actualizan automáticamente según la cotización del dólar del día.</p></div>
+      <div class="feature-card"><div class="feature-icon">💳</div><h3>Cobro con Mercado Pago</h3><p>Enviá el link de pago a tu cliente y recibí el pago directamente desde la factura.</p></div>
+      <div class="feature-card"><div class="feature-icon">📊</div><h3>Dashboard en tiempo real</h3><p>Visualizá tus ventas, clientes activos y métricas desde un solo panel.</p></div>
+      <div class="feature-card"><div class="feature-icon">🔗</div><h3>Catálogo Público</h3><p>Compartí un link de tu catálogo de productos con tus precios actualizados automáticamente.</p></div>
+    </div>
+  </section>
+
+  <section id="pricing">
+    <div class="section-header">
+      <h2>Un solo plan. <span class="gradient-text">Sin letra chica.</span></h2>
+      <p>Todas las funciones por una tarifa plana mensual.</p>
+    </div>
+    <div class="pricing-box">
+      <div class="price-badge">⚡ Plan Único Pro</div>
+      <div class="price">A consultar <span>/ mes</span></div>
+      <p style="color: var(--muted); margin-top: 0.5rem; font-size: 0.9rem;">Precio en pesos, sincronizado al dólar oficial</p>
+      <ul class="price-features">
+        <li><span class="check">✔</span> Facturas electrónicas ilimitadas</li>
+        <li><span class="check">✔</span> Productos y stock sin límite</li>
+        <li><span class="check">✔</span> Clientes ilimitados</li>
+        <li><span class="check">✔</span> Integración AFIP / ARCA</li>
+        <li><span class="check">✔</span> Cobros con Mercado Pago</li>
+        <li><span class="check">✔</span> Dollar-Sync automático</li>
+        <li><span class="check">✔</span> Catálogo público compartible</li>
+        <li><span class="check">✔</span> Soporte por WhatsApp</li>
+      </ul>
+      <a href="./frontend/dist/#/register" class="btn btn-primary" style="width:100%; justify-content:center; font-size:1.05rem; padding: 0.9rem;">🚀 Empezar 7 días gratis</a>
+      <p style="color: var(--muted); font-size: 0.8rem; margin-top: 1rem;">Sin tarjeta de crédito requerida.</p>
+    </div>
+  </section>
+
+  <section class="cta-section">
+    <h2>¿Listo para ordenar tu negocio?</h2>
+    <p>Empezá con 7 días gratis. Sin compromisos.</p>
+    <a href="./frontend/dist/#/register" class="btn btn-primary" style="font-size: 1.05rem; padding: 0.9rem 2.5rem;">Crear cuenta gratis →</a>
+  </section>
+
+  <footer>
+    <p><strong>FacturaYa</strong> — Desarrollado por <a href="#">Ulises Roig Bonavitta</a> · Analista de Sistemas · Escuela Da Vinci 🇦🇷</p>
+    <p style="margin-top:0.5rem;"><a href="./frontend/dist/#/login">Ingresar al sistema</a> · <a href="./frontend/dist/#/register">Registrarse</a></p>
+  </footer>
+
+</body>
+</html>
