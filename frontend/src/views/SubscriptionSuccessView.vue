@@ -24,7 +24,7 @@ onMounted(async () => {
       <div class="success-icon">🎉</div>
       <h1>¡Pago confirmado!</h1>
       <p class="success-sub">
-        Tu suscripción a <strong>FacturaYa {{ planLabel }}</strong> está activa.
+        Tu suscripción a <strong>FactuFlash {{ planLabel }}</strong> está activa.
         Ya tenés acceso completo al sistema.
       </p>
 

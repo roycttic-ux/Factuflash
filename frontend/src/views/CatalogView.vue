@@ -108,7 +108,7 @@ function whatsappProductLink(product: any) {
        </div>
 
        <footer class="catalog-footer">
-          <div class="footer-logo">FacturaYa</div>
+          <div class="footer-logo">FactuFlash</div>
           <p>Ventas seguras y facturación automática integrada.</p>
        </footer>
     </div>

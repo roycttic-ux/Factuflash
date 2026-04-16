@@ -1,4 +1,4 @@
-# 🚀 FacturaYa - Proyecto Final de Carrera
+# 🚀 FactuFlash - Proyecto Final de Carrera
 
 Sistema profesional de facturación y control de stock con actualización automática por dólar.
 

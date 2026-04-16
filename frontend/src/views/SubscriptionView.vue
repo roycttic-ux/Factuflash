@@ -56,7 +56,7 @@ async function checkout() {
   <div class="sub-page">
     <div class="page-header">
       <h1 class="page-title">Elegí tu plan</h1>
-      <p class="page-subtitle">Accedé a todas las funciones de FacturaYa sin límites.</p>
+      <p class="page-subtitle">Accedé a todas las funciones de FactuFlash sin límites.</p>
     </div>
 
     <div v-if="loading" class="loading-state">

@@ -68,7 +68,7 @@ class ArcaController extends Controller
         $dn = [
             "countryName" => "AR",
             "organizationName" => $companyName,
-            "commonName" => "FacturaYa-" . $userId,
+            "commonName" => "FactuFlash-" . $userId,
             "serialNumber" => "CUIT " . $cuitClean
         ];
 

@@ -96,8 +96,8 @@ class SubscriptionController extends Controller
         $preferenceData = [
             'items' => [
                 [
-                    'title' => "FacturaYa - {$planName}",
-                    'description' => "Suscripción {$planName} a FacturaYa - Sistema de Facturación y Stock Pro",
+                    'title' => "FactuFlash - {$planName}",
+                    'description' => "Suscripción {$planName} a FactuFlash - Sistema de Facturación y Stock Pro",
                     'quantity' => 1,
                     'unit_price' => (float) $amount,
                     'currency_id' => 'ARS',

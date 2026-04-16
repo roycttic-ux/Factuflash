@@ -67,8 +67,8 @@ class MercadoPagoController extends Controller
         $plan = $request->input('plan'); // 'monthly' o 'yearly'
         
         $planData = [
-            'monthly' => ['title' => 'Plan Mensual FacturaYa', 'price' => 35000.00],
-            'yearly'  => ['title' => 'Plan Anual FacturaYa (2 meses gratis)', 'price' => 310000.00]
+            'monthly' => ['title' => 'Plan Mensual FactuFlash', 'price' => 35000.00],
+            'yearly'  => ['title' => 'Plan Anual FactuFlash (2 meses gratis)', 'price' => 310000.00]
         ];
 
         if (!isset($planData[$plan])) {

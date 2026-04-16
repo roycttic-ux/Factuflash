@@ -1,6 +1,6 @@
 <?php
 /**
- * FacturaYa - Web Migration Runner
+ * FactuFlash - Web Migration Runner
  * Accedé por: /api/public/migrate.php?secret=facturaya2026
  * 
  * ⚠️  IMPORTANTE: Eliminá este archivo del servidor después de correr las migraciones.
@@ -21,7 +21,7 @@ $kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
 
 header('Content-Type: text/html; charset=utf-8');
 echo '<pre style="font-family:monospace; background:#111; color:#0f0; padding:20px; font-size:14px;">';
-echo "=== FacturaYa - Ejecutor de Migraciones ===\n\n";
+echo "=== FactuFlash - Ejecutor de Migraciones ===\n\n";
 
 // 1. Run standard migrations
 echo "--- Paso 1: Migraciones principales ---\n";
@@ -61,7 +61,7 @@ try {
 }
 
 // 3. List all tables
-echo "\n--- Paso 3: Verificando todas las tablas de FacturaYa ---\n";
+echo "\n--- Paso 3: Verificando todas las tablas de FactuFlash ---\n";
 $requiredTables = [
     'users', 'personal_access_tokens', 'products', 'recipients',
     'invoices', 'invoice_items', 'user_settings', 'subscriptions',

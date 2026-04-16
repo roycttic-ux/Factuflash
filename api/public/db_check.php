@@ -1,6 +1,6 @@
 <?php
 /**
- * DB Connection Tester for FacturaYa
+ * DB Connection Tester for FactuFlash
  * Place this in api/public/db_check.php
  */
 
@@ -8,7 +8,7 @@
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-echo "<h1>🔍 Verificador de Conexión DB - FacturaYa</h1>";
+echo "<h1>🔍 Verificador de Conexión DB - FactuFlash</h1>";
 
 // Try to load .env manually to show what we are testing
 $envFile = __DIR__ . '/../.env';

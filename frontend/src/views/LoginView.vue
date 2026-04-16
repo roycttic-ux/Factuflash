@@ -48,7 +48,7 @@ async function handleLogin() {
             <line x1="16" y1="17" x2="8" y2="17"/>
           </svg>
         </div>
-        <h1 class="brand-name">FacturaYa</h1>
+        <h1 class="brand-name">FactuFlash</h1>
       </div>
 
       <h2 class="login-title">Bienvenido 👋</h2>

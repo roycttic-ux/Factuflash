@@ -51,7 +51,7 @@ async function handleRegister() {
             <polyline points="14 2 14 8 20 8"/>
           </svg>
         </div>
-        <h1 class="brand-name">FacturaYa</h1>
+        <h1 class="brand-name">FactuFlash</h1>
       </div>
 
       <h2 class="login-title">
