@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  # Backend (Laravel)
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    container_name: factuflash_api
+    restart: always
+    volumes:
+      - ./api:/var/www/html
+    environment:
+      - APP_ENV=production
+    networks:
+      - factuflash_net
+
+  # Frontend (Vite/Vue)
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: factuflash_frontend
+    restart: always
+    networks:
+      - factuflash_net
+
+  # Servidor Web (Nginx) que une todo
+  nginx:
+    image: nginx:stable-alpine
+    container_name: factuflash_nginx
+    restart: always
+    ports:
+      - "80:80"
+    volumes:
+      - ./docker/nginx/conf.d:/etc/nginx/conf.d
+      - ./api:/var/www/html
+      - ./frontend/dist:/var/www/frontend
+    depends_on:
+      - api
+      - frontend
+    networks:
+      - factuflash_net
+
+networks:
+  factuflash_net:
+    driver: bridge
