@@ -1,95 +1,82 @@
-# 🚀 FacturaYa: Sistema de Facturación y Stock Pro
-**Propuesta de Proyecto - Trabajo Final de Carrera (Analista de Sistemas)**
-*Versión 2.0 (Edición Optimizada)*
+# INFORME TÉCNICO: SISTEMA INTEGRAL DE GESTIÓN EMPRESARIAL "FACTUFLASH"
+**SITUACIÓN: ESPECIFICACIÓN DE REQUISITOS, ARQUITECTURA E INFRAESTRUCTURA**
+
+**RESPONSABLE:** Ulises Roig Bonavitta  
+**ROL:** Analista de Sistemas  
+**ENTIDAD:** Escuela Da Vinci - Proyecto de Grado  
+**FECHA:** 15 de Abril de 2026  
+**ESTADO:** Fase de Despliegue en Producción
 
 ---
 
-## 📄 Resumen Ejecutivo
-**FacturaYa** es una solución integral diseñada para pequeños y medianos emprendimientos que buscan simplificar su gestión diaria. A diferencia de los sistemas tradicionales basados en múltiples planes complejos y confusos, FacturaYa ofrece un **Plan Único de Suscripción**, brindando acceso a todas las funcionalidades premium por una tarifa plana mensual. El sistema integra el control de inventario con una actualización automática de precios en tiempo real basada en la cotización del dólar, protegiendo al comerciante de la inflación y fluctuaciones cambiarias.
+## 1. INTRODUCCIÓN Y JUSTIFICACIÓN DEL PROYECTO
+
+### 1.1. Antecedentes del Problema
+En el contexto económico actual de Argentina, las pequeñas y medianas empresas (PyMEs) enfrentan dos desafíos críticos: la obligatoriedad de la facturación electrónica ante ARCA/AFIP y la constante devaluación de la moneda local. Los sistemas de facturación tradicionales operan con precios estáticos, lo que genera una pérdida de rentabilidad debido a la falta de sincronización con la cotización de divisas.
+
+### 1.2. Objetivo General
+Diseñar e implementar una plataforma de software escalable que automatice la facturación electrónica bajo normativas fiscales vigentes, integrando un motor de gestión de inventarios con indexación automática de precios basada en variables cambiarias externas bajo el nombre comercial de FactuFlash.
 
 ---
 
-## 💎 Propuesta de Valor (Plan Único & Transparente)
+## 2. ANÁLISIS DE REQUERIMIENTOS DEL SISTEMA
 
-> [!IMPORTANT]
-> **Sin Sorpresas, Sin Planes "Bronze" o "Platinum":** Un solo precio mensual para tener todo el poder del sistema, sin límites de facturas o usuarios.
-
-1.  **Plan Único & Transparente:** Sin límites y con todas las funciones Pro desde el día uno.
-2.  **Identidad de Marca Premium:** Facturas diseñadas estéticamente con el logotipo de la empresa, elevando el nivel profesional del PYME ante sus clientes.
-3.  **Protección Cambiaria:** Precios de stock vinculados en tiempo real a la API del dólar.
-3.  **Multicanalidad:** Gestión total desde la web y consulta rápida de métricas desde la App Mobile.
-
----
-
-## 🚀 Mejoras Sugeridas & Diferenciales (Próximas Versiones)
-
-Para elevar el valor comercial del producto y facilitar la venta, se sugieren las siguientes implementaciones:
-
-*   **🛒 Envío Directo por WhatsApp:** Al generar la factura, enviarla automáticamente al cliente mediante un enlace o PDF por WhatsApp Web.
-*   **💵 Suscripción Dollar-Linked:** Para mantener la rentabilidad frente a la inflación, la tarifa mensual del software puede estar anclada al valor del dólar oficial/blue en el día del pago.
-*   **🔔 Alertas de Reposición Inteligentes:** Notificaciones al móvil cuando el stock caiga por debajo de un umbral crítico definido por el usuario.
-*   **📅 Reporte de Cierre de Mes Automatizado:** Envío de un PDF resumen con las ganancias y el estado de stock directamente al correo del dueño.
-*   **🆓 Período de Prueba (Free Trial):** Ofrecer 7 días de acceso completo sin costo para reducir la fricción en la primera venta.
-
----
-
-## ⚙️ Stack Tecnológico (Modern & Scalable)
-
-| Capa | Tecnología | Función |
+### 2.1. Requerimientos Funcionales (RF)
+| Código | Requerimiento | Descripción Técnica |
 | :--- | :--- | :--- |
-| **Backend** | ![PHP](https://img.shields.io/badge/PHP-777BB4?style=flat-square&logo=php&logoColor=white) | Lógica de negocio robusta. |
-| **Frontend Web** | ![Tailwind](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=flat-square&logo=tailwind-css&logoColor=white) | Interfaz moderna y ultra-sensible. |
-| **Mobile** | ![Kotlin](https://img.shields.io/badge/Kotlin-0095D5?style=flat-square&logo=kotlin&logoColor=white) | Rendimiento nativo para reportes. |
-| **Base de Datos** | ![MySQL](https://img.shields.io/badge/MySQL-4479A1?style=flat-square&logo=mysql&logoColor=white) | Almacenamiento seguro y optimizado. |
-| **Autenticación** | ![Auth0](https://img.shields.io/badge/Auth0-EB5424?style=flat-square&logo=auth0&logoColor=white) | Seguridad nivel empresarial para usuarios. |
-| **Pagos & APIs** | MercadoPago, API Dólar, Google Captcha | Integración con el Plan Único de suscripción. |
+| **RF-001** | **Gestión Fiscal (WSAA/WSFE)** | Autenticación y solicitud de CAE ante servidores de AFIP mediante protocolos SOAP y certificados X.509. |
+| **RF-002** | **Algoritmo Dollar-Linked** | Motor de cálculo que procesa el costo base (USD) contra la cotización spot del día para determinar el precio de venta final. |
+| **RF-003** | **Trazabilidad de Inventario** | Registro de movimientos de stock con bitácora de auditoría y niveles de stock de seguridad configurables. |
+| **RF-004** | **Pasarela de Cobros** | Integración asíncrona mediante el SDK de Mercado Pago para la recepción de pagos digitales. |
+
+### 2.2. Requerimientos No Funcionales (RNF)
+*   **Seguridad:** Implementación de cifrado para el almacenamiento de claves privadas y uso de JWT (Json Web Tokens) para la gestión de sesiones sin estado.
+*   **Interoperabilidad:** Desarrollo de una API RESTful que permite el desacoplamiento total entre el núcleo de negocio y el cliente visual.
+*   **Performance:** Capacidad instalada para procesar solicitudes concurrentes con latencia inferior a 250ms a nivel de servidor.
 
 ---
 
-## 📊 Alcance del Proyecto
+## 3. ARQUITECTURA TÉCNICA Y STACK TECNOLÓGICO
 
-### 🌐 Plataforma Web (Gestión Administrativa)
-*   **Plan Único Todo Incluido:** Sin límites de carga de productos o facturas.
-*   **ABM de Productos:** Carga masiva y edición de stock.
-*   **Facturación Inteligente:** Generación instantánea de comprobantes.
-*   **Dashboards:** Estadísticas avanzadas y métricas de rentabilidad.
-*   **Pasarela de Pago:** Suscripciones recurrentes automáticas con MercadoPago.
+### 3.1. Backend (Núcleo de Procesamiento)
+El servidor opera bajo **Laravel 11** montado sobre **PHP 8.2+**. Se ha seleccionado este framework por su capacidad de abstracción de datos mediante **Eloquent ORM** y su gestión eficiente de colas de procesos (Jobs), crítica para reintentos de facturación ante fallos del organismo fiscal.
 
-### 📱 Aplicación Mobile (Consulta en Campo)
-*   **Historial de Ventas:** Acceso rápido a facturas emitidas.
-*   **Monitor de Precios:** Consulta de precios recomendados según el dólar actual.
-*   **Alertas de Stock:** Notificaciones push de falta de existencias.
+### 3.2. Frontend (Interfaz de Gestión)
+Se utiliza **Vue.js 3** con el motor de compilación **Vite**. Esta combinación permite una Single Page Application (SPA) que elimina recargas de página innecesarias, optimizando la experiencia de usuario (UX) en procesos de alta carga de datos.
 
----
-
-## ⚔️ Análisis Comparativo de Mercado
-
-| Competidor | Modelo | Ventaja FacturaYa |
-| :--- | :--- | :--- |
-| **Colppy** | Planes Complejos (Graduales) | **Simplicidad:** Un solo plan con todas las funciones. |
-| **Contagram** | Sin App Mobile | **Movilidad:** Acceso total desde la app propia. |
-| **Xero** | Interfaz Compleja (Inglés) | **Simplicidad:** Totalmente en español y fácil de usar. |
+### 3.3. Persistencia de Datos
+Se emplea **MySQL 8.0** con un esquema normalizado que incluye:
+*   **Segregación de Datos por Usuario:** Multi-tenancy implementado mediante alcances globales (scopes) para garantizar la privacidad de la información.
+*   **Cifrado Nativo:** Los campos sensibles (como CUIT o rutas de certificados) se gestionan bajo estándares de cifrado de la aplicación.
 
 ---
 
-## 🛤️ Roadmap de Implementación
+## 4. INFRAESTRUCTURA Y DESPLIEGUE EN PRODUCCIÓN
 
-```mermaid
-graph LR
-    A[Fase 1: Core] --> B[Fase 2: APIs]
-    B --> C[Fase 3: Mobile]
-    C --> D[Lanzamiento]
-    
-    style A fill:#f9f,stroke:#333,stroke-width:2px
-    style D fill:#bbf,stroke:#333,stroke-width:4px
-```
+El sistema se aloja en una arquitectura de **Servidor Privado Virtual (VPS)** de alta disponibilidad para mitigar riesgos operativos.
 
-1.  **Fundamentos:** Modelado de base de datos y lógica de stock en PHP.
-2.  **Conectividad:** Integración de MercadoPago y API Dólar.
-3.  **Movilidad:** Desarrollo de la vista de reportes en Kotlin.
-4.  **Polish:** Pruebas de seguridad y despliegue final.
+### 4.1. Análisis de Recursos de Hardware
+*   **CPU:** 4 vCores de arquitectura moderna, optimizados para procesos de cálculo intensivo (cifrado OpenSSL).
+*   **Memoria RAM:** 8 GB DDR4 dedicados, permitiendo la ejecución fluida del pool de PHP-FPM y el motor de MySQL.
+*   **Almacenamiento:** 75 GB SSD NVMe de alto rendimiento. Se prioriza la baja latencia de disco para operaciones de lectura/escritura de comprobantes.
+*   **Ancho de Banda:** 400 Mbit/s simétricos con transferencia ilimitada.
 
 ---
 
-> [!TIP]
-> **Siguiente Paso:** Implementación de un ORM (como *Eloquent*) para agilizar la manipulación de datos y mejorar la mantenibilidad del código.
+## 5. SEGURIDAD Y CONTINUIDAD OPERATIVA (DRP)
+
+### 5.1. Gestión de Certificados y Sesiones Fiscales
+El sistema implementa una **Caché de Tokens WSAA** propietaria. Al solicitar un permiso ante AFIP, el token y el firma (Sign) se almacenan de forma segura por un periodo de 12 horas, minimizando las llamadas externas y protegiendo el sistema de caídas del servicio gubernamental.
+
+### 5.2. Plan de Respaldo y Protección
+*   **Backups Automatizados:** Respaldo diario integral del sistema y bases de datos fuera del servidor principal.
+*   **Protección Anti-DDoS:** Capa de seguridad perimetral para filtrado de tráfico malicioso.
+*   **HTTPS Seguro:** Implementación de certificados SSL con cifrado SHA-256.
+
+---
+
+## 6. CONCLUSIÓN DEL REPORTE
+El proyecto **FactuFlash** cumple con los estándares rigurosos de ingeniería de software para sistemas de misión crítica. La arquitectura desacoplada, sumada a una infraestructura robusta de 4 núcleos y 8 GB de RAM, garantiza una herramienta estable, potente y preparada para el escalamiento comercial dentro del mercado argentino.
+
+____________________________________________________________________________________________________
+**FIN DEL INFORME**

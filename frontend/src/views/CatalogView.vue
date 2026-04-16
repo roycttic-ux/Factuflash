@@ -34,12 +34,12 @@ function formatARS(n: number) {
 
 function whatsappLink() {
   const num = (company.value.settings?.whatsapp_number || company.value.whatsapp)?.replace(/[^0-9]/g, '')
-  return `https://wa.me/${num}?text=Hola! Vengo de ver tu catálogo FacturaYa y me interesan algunos productos.`
+  return `https://wa.me/${num}?text=Hola! Vengo de ver tu catálogo FactuFlash y me interesan algunos productos.`
 }
 
 function whatsappProductLink(product: any) {
   const num = (company.value.settings?.whatsapp_number || company.value.whatsapp)?.replace(/[^0-9]/g, '')
-  const text = encodeURIComponent(`¡Hola! 👋 Me interesa el producto: *${product.name}* que vi en tu catálogo de FacturaYa.`)
+  const text = encodeURIComponent(`¡Hola! 👋 Me interesa el producto: *${product.name}* que vi en tu catálogo de FactuFlash.`)
   return `https://wa.me/${num}?text=${text}`
 }
 </script>

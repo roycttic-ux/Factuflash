@@ -18,6 +18,7 @@ class AuthController extends Controller
             'email' => 'required|email|unique:users,email',
             'password' => 'required|string|min:6',
             'company_name' => 'nullable|string|max:150',
+            'plan_status' => 'nullable|string',
         ]);
 
         $user = User::create([
@@ -25,7 +26,7 @@ class AuthController extends Controller
             'email' => $validated['email'],
             'password' => Hash::make($validated['password']),
             'company_name' => $validated['company_name'] ?? null,
-            'plan_status' => 'trial',
+            'plan_status' => $request->input('plan_status', 'trial'),
             'trial_expires_at' => now()->addDays(7),
         ]);
 

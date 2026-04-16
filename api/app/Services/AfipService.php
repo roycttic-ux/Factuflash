@@ -25,7 +25,7 @@ class AfipService
      */
     private function getAuth()
     {
-        $cachePath = storage_path('app/private/certs/token_cache.json');
+        $cachePath = storage_path('app/private/certs/token_' . $this->cuit . '.json');
         $cacheDir = dirname($cachePath);
         if (!is_dir($cacheDir)) {
             mkdir($cacheDir, 0777, true);

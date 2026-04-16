@@ -11,7 +11,7 @@ class ProductController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $products = Product::where('user_id', $request->user()->id)
+        $products = Product::where('user_id', $request->user()->system_owner_id)
             ->orderBy('created_at', 'desc')
             ->get();
 
@@ -38,7 +38,7 @@ class ProductController extends Controller
             $validated['image_url'] = $path;
         }
 
-        $validated['user_id'] = $request->user()->id;
+        $validated['user_id'] = $request->user()->system_owner_id;
 
         $product = Product::create($validated);
 
@@ -48,7 +48,7 @@ class ProductController extends Controller
     public function show(Request $request, int $id): JsonResponse
     {
         $product = Product::where('id', $id)
-            ->where('user_id', $request->user()->id)
+            ->where('user_id', $request->user()->system_owner_id)
             ->first();
 
         if (!$product) {
@@ -61,7 +61,7 @@ class ProductController extends Controller
     public function update(Request $request, int $id): JsonResponse
     {
         $product = Product::where('id', $id)
-            ->where('user_id', $request->user()->id)
+            ->where('user_id', $request->user()->system_owner_id)
             ->first();
 
         if (!$product) {
@@ -99,7 +99,7 @@ class ProductController extends Controller
     public function destroy(Request $request, int $id): JsonResponse
     {
         $product = Product::where('id', $id)
-            ->where('user_id', $request->user()->id)
+            ->where('user_id', $request->user()->system_owner_id)
             ->first();
 
         if (!$product) {
@@ -113,7 +113,7 @@ class ProductController extends Controller
 
     public function lowStock(Request $request): JsonResponse
     {
-        $products = Product::where('user_id', $request->user()->id)
+        $products = Product::where('user_id', $request->user()->system_owner_id)
             ->whereColumn('stock', '<=', 'min_stock_alert')
             ->get();
 

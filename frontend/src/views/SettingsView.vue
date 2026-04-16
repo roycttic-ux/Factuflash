@@ -1,12 +1,20 @@
 <script setup lang="ts">
 import { ref, onMounted, reactive } from 'vue'
-import { settingsApi, arcaApi } from '@/api/services'
+import { settingsApi, arcaApi, mpApi, subscriptionApi } from '@/api/services'
 import { useAuthStore } from '@/stores/auth'
+import { useRoute } from 'vue-router'
 
 const auth = useAuthStore()
+const route = useRoute()
 const loading = ref(true)
 const saving = ref(false)
+const paying = ref('')
 const toast = ref<{ msg: string; type: string } | null>(null)
+const openSection = ref<string | null>('empresa')
+
+function toggleSection(section: string) {
+  openSection.value = openSection.value === section ? null : section
+}
 
 const form = reactive({
   company_name: '',
@@ -37,10 +45,16 @@ const arca = reactive({
   csr: '',
   loading: false,
   file: null as File | null,
-  certText: '', 
+  certText: '',
 })
 
 onMounted(async () => {
+  if (route.query.payment === 'success') {
+    showToast('¡Pago procesado con éxito! Tu plan se actualizará pronto.', 'success')
+  } else if (route.query.payment === 'failure') {
+    showToast('El pago no pudo completarse. Reintentá nuevamente.', 'error')
+  }
+
   try {
     const res = await settingsApi.get()
     const s = res.data.settings
@@ -57,16 +71,14 @@ onMounted(async () => {
       whatsapp_number:    s.whatsapp_number    ?? '',
       show_whatsapp_button: s.show_whatsapp_button !== undefined ? !!s.show_whatsapp_button : true,
       mp_access_token:    s.mp_access_token    ?? '',
-      mp_public_key:     s.mp_public_key     ?? '',
+      mp_public_key:      s.mp_public_key      ?? '',
       catalog_theme:      s.catalog_theme      ?? 'white',
     })
     arca.cuit = s.arca_cuit ?? ''
     arca.connected = !!s.arca_connected
-    if (s.company_logo) {
+    if (s?.company_logo) {
       logo.preview = '/sistemafacturacion/api/public/storage/' + s.company_logo
     }
-  } catch {
-    // defaults already set
   } finally {
     loading.value = false
   }
@@ -92,9 +104,8 @@ function showToast(msg: string, type: string) {
 function handleLogoChange(e: Event) {
   const input = e.target as HTMLInputElement
   if (input.files && input.files[0]) {
-    const file = input.files[0]
-    logo.file = file
-    logo.preview = URL.createObjectURL(file)
+    logo.file = input.files[0]
+    logo.preview = URL.createObjectURL(input.files[0])
   }
 }
 
@@ -107,7 +118,7 @@ async function uploadLogo() {
     const res = await settingsApi.uploadLogo(fd)
     logo.preview = res.data.logo_url
     showToast('Logo actualizado', 'success')
-  } catch (e: any) {
+  } catch {
     showToast('Error al subir logo', 'error')
   } finally {
     logo.uploading = false
@@ -136,15 +147,9 @@ function handleFile(e: Event) {
 async function uploadCert() {
   if (!arca.file && !arca.certText) return
   arca.loading = true
-  
   const fd = new FormData()
-  if (arca.file) {
-    fd.append('cert', arca.file)
-  }
-  if (arca.certText) {
-    fd.append('cert_text', arca.certText)
-  }
-
+  if (arca.file) fd.append('cert', arca.file)
+  if (arca.certText) fd.append('cert_text', arca.certText)
   try {
     await arcaApi.uploadCert(fd)
     arca.connected = true
@@ -178,8 +183,34 @@ function copyCsr() {
   showToast('Copiado al portapapeles', 'success')
 }
 
+async function cancelSubscription() {
+  if (!confirm('¿Estás seguro de cancelar tu suscripción?')) return
+  saving.value = true
+  try {
+    await subscriptionApi.cancel()
+    await auth.fetchMe()
+    showToast('Suscripción cancelada con éxito', 'success')
+  } catch {
+    showToast('Error al cancelar la suscripción', 'error')
+  } finally {
+    saving.value = false
+  }
+}
+
+async function pay(plan: string) {
+  paying.value = plan
+  try {
+    const res = await mpApi.createSubscription(plan)
+    if (res.data.init_point) window.location.href = res.data.init_point
+  } catch {
+    showToast('Error al conectar con Mercado Pago', 'error')
+  } finally {
+    paying.value = ''
+  }
+}
+
 function copyCatalogLink() {
-  const link = window.location.origin + window.location.pathname + '#/catalogo/' + auth.user?.id
+  const link = window.location.origin + window.location.pathname + '#/catalogo/' + (auth.user?.owner_id || auth.user?.id)
   navigator.clipboard.writeText(link)
   showToast('Link copiado al portapapeles', 'success')
 }
@@ -188,232 +219,208 @@ const window = (globalThis as any).window
 </script>
 
 <template>
-  <div>
+  <div class="settings-page">
     <div class="page-header">
       <div>
         <h1 class="page-title">Configuración</h1>
-        <p class="page-subtitle">Datos de tu empresa y preferencias del sistema</p>
+        <p class="page-subtitle">Personalizá tu empresa e integraciones desde aquí</p>
       </div>
     </div>
 
-    <div v-if="loading" style="display:flex;justify-content:center;padding:3rem;">
-      <span class="spinner" style="width:28px;height:28px;color:var(--primary);"></span>
+    <div v-if="loading" style="display:flex;justify-content:center;padding:4rem;">
+      <span class="spinner" style="width:32px;height:32px;color:var(--primary);"></span>
     </div>
 
-    <form v-else @submit.prevent="save" class="settings-layout">
-      <!-- Empresa -->
-      <div class="card settings-section">
-        <div class="settings-section-header">
-          <div class="settings-icon">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-              <polyline points="9 22 9 12 15 12 15 22"/>
-            </svg>
+    <form v-else @submit.prevent="save" class="accordion-wrap">
+
+      <!-- ── EMPRESA ─────────────────────────────────── -->
+      <div class="acc-item" :class="{ open: openSection === 'empresa' }">
+        <button type="button" class="acc-head" @click="toggleSection('empresa')">
+          <span class="acc-icon" style="background:rgba(59,130,246,.12);color:#3b82f6;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          </span>
+          <div class="acc-meta">
+            <strong>Empresa</strong>
+            <small>Razón social, CUIT, logo y dirección fiscal</small>
           </div>
-          <div>
-            <h2 class="settings-title">Datos de la Empresa</h2>
-            <p class="settings-sub">Información que aparece en las facturas</p>
-          </div>
-        </div>
-        <div class="settings-fields">
-          <div class="logo-upload-wrap">
-             <div class="logo-preview-box">
-                <img v-if="logo.preview" :src="logo.preview" class="logo-preview-img" />
-                <div v-else class="logo-placeholder">Sin Logo</div>
-             </div>
-             <div class="logo-actions">
-                <p class="text-xs font-bold mb-1">Logo de la empresa</p>
-                <p class="text-xs text-muted mb-2">Se mostrará en tus facturas impresas.</p>
+          <svg class="acc-chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="acc-body">
+          <div class="acc-inner">
+            <!-- Logo -->
+            <div class="logo-row">
+              <div class="logo-box">
+                <img v-if="logo.preview" :src="logo.preview" />
+                <span v-else>Logo</span>
+              </div>
+              <div>
+                <p class="label-bold">Logo de la empresa</p>
+                <p class="text-muted text-xs mb-2">Aparecerá en tus facturas impresas. PNG o JPG.</p>
                 <div class="flex gap-2">
-                  <input type="file" @change="handleLogoChange" accept="image/*" class="form-input text-xs" style="max-width:200px;" />
+                  <input type="file" @change="handleLogoChange" accept="image/*" class="form-input text-xs" style="max-width:180px;" />
                   <button type="button" class="btn btn-sm btn-ghost" :disabled="!logo.file || logo.uploading" @click="uploadLogo">
-                    {{ logo.uploading ? '...' : 'Subir' }}
+                    {{ logo.uploading ? '…' : 'Subir' }}
                   </button>
                 </div>
-             </div>
-          </div>
-          <div class="grid-2">
-            <div class="form-group">
-              <label class="form-label">Razón Social</label>
-              <input v-model="form.company_name" class="form-input" placeholder="Mi Empresa S.A." />
+              </div>
+            </div>
+            <!-- Campos -->
+            <div class="grid-2">
+              <div class="form-group">
+                <label class="form-label">Razón Social</label>
+                <input v-model="form.company_name" class="form-input" placeholder="Mi Empresa S.A." />
+              </div>
+              <div class="form-group">
+                <label class="form-label">CUIT</label>
+                <input v-model="form.company_cuit" class="form-input" placeholder="20-12345678-9" />
+              </div>
             </div>
             <div class="form-group">
-              <label class="form-label">CUIT</label>
-              <input v-model="form.company_cuit" class="form-input" placeholder="20-12345678-9" />
+              <label class="form-label">Dirección fiscal</label>
+              <input v-model="form.company_address" class="form-input" placeholder="Av. Corrientes 1234, CABA" />
             </div>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Dirección fiscal</label>
-            <input v-model="form.company_address" class="form-input" placeholder="Av. Corrientes 1234, Buenos Aires" />
-          </div>
-          <div class="grid-2">
-            <div class="form-group">
-              <label class="form-label">Email</label>
-              <input v-model="form.company_email" class="form-input" type="email" placeholder="facturacion@empresa.com" />
+            <div class="grid-2">
+              <div class="form-group">
+                <label class="form-label">Email de contacto</label>
+                <input v-model="form.company_email" class="form-input" type="email" placeholder="contacto@empresa.com" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Teléfono</label>
+                <input v-model="form.company_phone" class="form-input" placeholder="+54 11 1234-5678" />
+              </div>
             </div>
-            <div class="form-group">
-              <label class="form-label">Teléfono</label>
-              <input v-model="form.company_phone" class="form-input" placeholder="+54 11 1234-5678" />
+            <div class="form-group" style="max-width:280px;">
+              <label class="form-label">Condición IVA</label>
+              <select v-model="form.tax_condition" class="form-select">
+                <option>Responsable Inscripto</option>
+                <option>Monotributista</option>
+                <option>Exento</option>
+                <option>Consumidor Final</option>
+              </select>
             </div>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Condición IVA</label>
-            <select v-model="form.tax_condition" class="form-select">
-              <option>Responsable Inscripto</option>
-              <option>Monotributista</option>
-              <option>Exento</option>
-              <option>Consumidor Final</option>
-            </select>
           </div>
         </div>
       </div>
 
-      <!-- Catálogo y WhatsApp -->
-      <div class="card settings-section">
-        <div class="settings-section-header">
-          <div class="settings-icon">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-               <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
-            </svg>
+      <!-- ── CATÁLOGO ────────────────────────────────── -->
+      <div class="acc-item" :class="{ open: openSection === 'catalogo' }">
+        <button type="button" class="acc-head" @click="toggleSection('catalogo')">
+          <span class="acc-icon" style="background:rgba(16,185,129,.12);color:#10b981;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          </span>
+          <div class="acc-meta">
+            <strong>Catálogo y Ventas</strong>
+            <small>Tienda online, WhatsApp y cotización del dólar</small>
           </div>
-          <div>
-            <h2 class="settings-title">Catálogo y WhatsApp</h2>
-            <p class="settings-sub">Gestioná tu catálogo público para clientes</p>
-          </div>
-        </div>
-        <div class="settings-fields">
-           <div class="info-box">
-             <div class="flex-1">
-                <p class="font-bold text-sm mb-1">Tu link de catálogo:</p>
-                <code class="text-xs color-primary" style="word-break:break-all;">{{ window.location.origin + window.location.pathname + '#/catalogo/' + auth.user?.id }}</code>
-             </div>
-             <button type="button" class="btn btn-sm btn-ghost" @click="copyCatalogLink">Copiar Link</button>
-           </div>
-           
-           <div class="grid-2" style="margin-top:1rem;">
-             <div class="form-group">
-                <label class="form-label">Número de WhatsApp (con código de país)</label>
+          <svg class="acc-chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="acc-body">
+          <div class="acc-inner">
+            <!-- Link catálogo -->
+            <div class="info-pill">
+              <div class="flex-1 overflow-hidden">
+                <p class="label-bold mb-1">Link de tu catálogo público</p>
+                <code class="catalog-code">{{ window.location.origin + window.location.pathname + '#/catalogo/' + (auth.user?.owner_id || auth.user?.id) }}</code>
+              </div>
+              <button type="button" class="btn btn-sm btn-primary" @click="copyCatalogLink">Copiar</button>
+            </div>
+
+            <div class="grid-2" style="margin-top:1.25rem;">
+              <div class="form-group">
+                <label class="form-label">WhatsApp (con código de país)</label>
                 <input v-model="form.whatsapp_number" class="form-input" placeholder="5491112345678" />
-             </div>
-             <div class="form-group">
-                <label class="form-label">Tema de color del catálogo</label>
-                <select v-model="form.catalog_theme" class="form-select">
-                   <option value="white">Blanco Clásico</option>
-                   <option value="black">Negro Premium</option>
-                   <option value="blue">Azul Profesional</option>
-                   <option value="pink">Rosa Moderno</option>
-                   <option value="purple">Violeta Creativo</option>
-                </select>
-             </div>
-           </div>
-           
-           <div class="form-group" style="margin-top:0.5rem;">
-              <label class="flex items-center gap-2 cursor-pointer">
-                 <input type="checkbox" v-model="form.show_whatsapp_button" />
-                 <span class="text-sm font-medium">Mostrar botón de WhatsApp en catálogo</span>
-              </label>
-           </div>
-        </div>
-      </div>
-
-      <!-- Facturación -->
-      <div class="card settings-section">
-        <div class="settings-section-header">
-          <div class="settings-icon">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
-            </svg>
-          </div>
-          <div>
-            <h2 class="settings-title">Facturación</h2>
-            <p class="settings-sub">Configuración de numeración y tipo de cambio</p>
-          </div>
-        </div>
-        <div class="settings-fields">
-          <div class="form-group">
-            <label class="form-label">Modo de cotización (Dólar)</label>
-            <select v-model="form.dollar_rate_mode" class="form-select" style="max-width:280px;">
-              <option value="manual">Manual (fijo)</option>
-              <option value="bcra">Automático (BCRA oficial)</option>
-              <option value="blue">Automático (Blue/Informal)</option>
-            </select>
-          </div>
-          <div v-if="form.dollar_rate_mode === 'manual'" class="form-group">
-            <label class="form-label">Tipo de cambio manual (ARS por USD)</label>
-            <input v-model="form.dollar_rate_manual" class="form-input" type="number" step="0.01" min="0" placeholder="1240" style="max-width:200px;" />
-          </div>
-          <div v-else class="info-box">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-            Se usará el valor del dólar en tiempo real al momento de facturar.
-          </div>
-          
-          <div class="info-box" style="margin-top:1rem; border-color:var(--accent);">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
-            <div>
-               <p class="font-bold text-xs" style="color:var(--accent);">¿Conectar Postnet?</p>
-               <p class="text-xs">Para registrar pagos con tarjeta, ahora puedes elegir "Tarjeta" al crear una factura. El sistema llevará el control de esos cobros.</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- ARCA / AFIP -->
-      <div class="card settings-section">
-        <div class="settings-section-header">
-          <div class="settings-icon" :style="arca.connected ? 'background:rgba(52,211,153,0.15);color:var(--success);' : ''">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-            </svg>
-          </div>
-          <div class="flex-1">
-            <div class="flex items-center gap-2">
-              <h2 class="settings-title">Vinculación ARCA (AFIP)</h2>
-              <span v-if="arca.connected" class="badge badge-success">Conectado</span>
-              <span v-else class="badge badge-warning">Sin vincular</span>
-            </div>
-            <p class="settings-sub">Configurá tus certificados para facturación electrónica</p>
-          </div>
-          <button v-if="arca.connected" type="button" class="btn btn-ghost btn-danger btn-sm" @click="resetArca">Restablecer</button>
-        </div>
-
-        <div class="settings-fields">
-          <div v-if="!arca.connected">
-            <div class="step-box">
-              <div class="step-num">1</div>
-              <div class="flex-1">
-                <p class="font-bold text-sm mb-1">Generar claves y pedido CSR</p>
-                <p class="text-xs text-muted mb-3">Ingresá tu CUIT y generá las claves necesarias para AFIP.</p>
-                <div class="flex gap-2">
-                  <input v-model="arca.cuit" class="form-input" placeholder="20-12345678-9" style="max-width:180px;" />
-                  <button type="button" class="btn btn-sm btn-primary" :disabled="arca.loading" @click="generateCsr">
-                    Generar
-                  </button>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Tema del catálogo</label>
+                <div class="theme-pick">
+                  <button type="button" class="tdot white" :class="{sel:form.catalog_theme==='white'}" @click="form.catalog_theme='white'" title="Blanco"></button>
+                  <button type="button" class="tdot black" :class="{sel:form.catalog_theme==='black'}" @click="form.catalog_theme='black'" title="Negro"></button>
+                  <button type="button" class="tdot blue"  :class="{sel:form.catalog_theme==='blue'}"  @click="form.catalog_theme='blue'"  title="Azul"></button>
+                  <button type="button" class="tdot pink"  :class="{sel:form.catalog_theme==='pink'}"  @click="form.catalog_theme='pink'"  title="Rosa"></button>
+                  <button type="button" class="tdot purple":class="{sel:form.catalog_theme==='purple'}" @click="form.catalog_theme='purple'" title="Violeta"></button>
                 </div>
               </div>
             </div>
 
-            <div v-if="arca.csr" class="csr-result">
-              <p class="text-xs font-bold mb-2">Pedido CSR generado (Copialo completo):</p>
-              <pre class="csr-code">{{ arca.csr }}</pre>
-              <button type="button" class="btn btn-sm btn-ghost w-full" style="margin-top:0.5rem;" @click="copyCsr">
-                 Copiar CSR
-              </button>
+            <label class="toggle-row">
+              <input type="checkbox" v-model="form.show_whatsapp_button" />
+              <span>Mostrar botón de WhatsApp en catálogo</span>
+            </label>
+
+            <div class="divider"></div>
+
+            <div class="form-group" style="max-width:280px;">
+              <label class="form-label">Cotización del dólar</label>
+              <select v-model="form.dollar_rate_mode" class="form-select">
+                <option value="manual">Manual (fijo)</option>
+                <option value="bcra">Automático – Oficial BCRA</option>
+                <option value="blue">Automático – Blue / Informal</option>
+              </select>
+            </div>
+            <div v-if="form.dollar_rate_mode === 'manual'" class="form-group" style="max-width:180px;">
+              <label class="form-label">ARS por USD</label>
+              <input v-model="form.dollar_rate_manual" class="form-input" type="number" step="0.01" min="0" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── AFIP / ARCA ─────────────────────────────── -->
+      <div class="acc-item" :class="{ open: openSection === 'arca' }">
+        <button type="button" class="acc-head" @click="toggleSection('arca')">
+          <span class="acc-icon" style="background:rgba(99,102,241,.12);color:#6366f1;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          </span>
+          <div class="acc-meta">
+            <strong>AFIP / ARCA</strong>
+            <small>Certificados para facturación electrónica</small>
+          </div>
+          <span v-if="arca.connected" class="status-pill ok">Activo</span>
+          <span v-else class="status-pill off">Sin vincular</span>
+          <svg class="acc-chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="acc-body">
+          <div class="acc-inner">
+            <!-- Conectado -->
+            <div v-if="arca.connected" class="connected-box">
+              <div class="check-circle">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
+              <div class="flex-1">
+                <p class="font-bold text-sm">Facturación Electrónica Activa</p>
+                <p class="text-xs text-muted">Tus facturas se comunican con AFIP en tiempo real.</p>
+              </div>
+              <button type="button" class="btn btn-sm btn-ghost" style="color:#f87171;" @click="resetArca" :disabled="arca.loading">Desconectar</button>
             </div>
 
-            <div class="step-box" style="margin-top:1rem;">
-              <div class="step-num">2</div>
-              <div class="flex-1">
-                <p class="font-bold text-sm mb-1">Subir o Pegar Certificado (.crt)</p>
-                <p class="text-xs text-muted mb-3">Una vez tramitado en AFIP, pegá el texto aquí o subí el archivo.</p>
-                
-                <textarea v-model="arca.certText" class="form-input text-xs mb-3" rows="5" placeholder="-----BEGIN CERTIFICATE----- ..."></textarea>
-                
-                <div class="flex gap-2">
-                  <input type="file" @change="handleFile" accept=".crt,.pem" class="form-input text-xs" />
-                  <button type="button" class="btn btn-sm btn-primary" :disabled="(!arca.file && !arca.certText) || arca.loading" @click="uploadCert">
-                    Vincular
-                  </button>
+            <!-- Sin conectar -->
+            <div v-else>
+              <div class="step-row">
+                <div class="step-bubble">1</div>
+                <div class="flex-1">
+                  <p class="label-bold mb-1">Generá el pedido CSR</p>
+                  <p class="text-xs text-muted mb-3">Ingresá tu CUIT sin guiones.</p>
+                  <div class="flex gap-2">
+                    <input v-model="arca.cuit" class="form-input" placeholder="20123456789" style="max-width:180px;" />
+                    <button type="button" class="btn btn-sm btn-primary" :disabled="arca.loading" @click="generateCsr">Generar</button>
+                  </div>
+                </div>
+              </div>
+              <div v-if="arca.csr" class="csr-box">
+                <p class="text-xs font-bold mb-2 text-muted">CSR generado — Copialo completo en AFIP:</p>
+                <pre class="csr-pre">{{ arca.csr }}</pre>
+                <button type="button" class="btn btn-xs btn-ghost w-full mt-2" @click="copyCsr">Copiar CSR</button>
+              </div>
+              <div class="step-row mt-4">
+                <div class="step-bubble">2</div>
+                <div class="flex-1">
+                  <p class="label-bold mb-1">Cargá el certificado (.crt)</p>
+                  <p class="text-xs text-muted mb-3">Pegá el contenido o subí el archivo que te entregó AFIP.</p>
+                  <textarea v-model="arca.certText" class="form-input text-xs mb-3" rows="4" placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----"></textarea>
+                  <div class="flex gap-2">
+                    <input type="file" @change="handleFile" accept=".crt,.pem" class="form-input text-xs" />
+                    <button type="button" class="btn btn-sm btn-primary" :disabled="(!arca.file && !arca.certText) || arca.loading" @click="uploadCert">Vincular</button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -421,143 +428,268 @@ const window = (globalThis as any).window
         </div>
       </div>
 
-      <!-- Mercado Pago / Integración Automática -->
-      <div class="card settings-section">
-        <div class="settings-section-header">
-          <div class="settings-icon" style="background:rgba(0,158,227,0.1);color:#009ee3;">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-               <rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/>
-            </svg>
+      <!-- ── MERCADO PAGO ────────────────────────────── -->
+      <div class="acc-item" :class="{ open: openSection === 'mp' }">
+        <button type="button" class="acc-head" @click="toggleSection('mp')">
+          <span class="acc-icon" style="background:rgba(0,158,227,.12);color:#009ee3;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+          </span>
+          <div class="acc-meta">
+            <strong>Mercado Pago</strong>
+            <small>Cobros automáticos con Point o QR</small>
           </div>
-          <div>
-            <h2 class="settings-title">Integración Mercado Pago</h2>
-            <p class="settings-sub">Cobrá automáticamente con Point o QR y recibilo en el sistema</p>
-          </div>
-        </div>
-        <div class="settings-fields">
-           <div class="info-box" style="border-left: 4px solid #009ee3;">
-              <p class="text-xs">Usa esto para que cuando cobres con un <strong>Mercado Pago Point</strong> o <strong>QR</strong>, la factura se marque como pagada automáticamente sin que tengas que tocar nada.</p>
-           </div>
-           <div class="form-group">
-            <label class="form-label">Access Token</label>
-            <input v-model="form.mp_access_token" type="password" class="form-input" placeholder="APP_USR-..." />
-          </div>
-          <div class="form-group">
-            <label class="form-label">Public Key</label>
-            <input v-model="form.mp_public_key" class="form-input" placeholder="APP_USR-..." />
-          </div>
-        </div>
-      </div>
-
-      <!-- Account -->
-      <div class="card settings-section">
-        <div class="settings-section-header">
-          <div class="settings-icon">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-              <circle cx="12" cy="7" r="4"/>
-            </svg>
-          </div>
-          <div>
-            <h2 class="settings-title">Cuenta</h2>
-            <p class="settings-sub">Información de tu cuenta de acceso</p>
-          </div>
-        </div>
-        <div class="settings-fields">
-          <div class="account-info-grid">
-            <div class="account-info-item">
-              <span class="form-label">Nombre</span>
-              <span class="font-semibold">{{ auth.user?.name }}</span>
+          <svg class="acc-chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="acc-body">
+          <div class="acc-inner">
+            <div class="info-pill" style="border-left:3px solid #009ee3; border-radius:8px; margin-bottom:1.25rem;">
+              <p class="text-xs" style="color:var(--text-muted);">Vinculá tu cuenta para que cuando cobres con Point o QR, el sistema registre el pago automáticamente.</p>
             </div>
-            <div class="account-info-item">
-              <span class="form-label">Email</span>
-              <span class="font-semibold">{{ auth.user?.email }}</span>
-            </div>
-            <div class="account-info-item">
-              <span class="form-label">Plan</span>
-              <span class="badge badge-primary" style="text-transform:capitalize;">{{ auth.user?.plan_status }}</span>
+            <div class="grid-2">
+              <div class="form-group">
+                <label class="form-label">Access Token (Producción)</label>
+                <input v-model="form.mp_access_token" type="password" class="form-input" placeholder="APP_USR-…" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Public Key</label>
+                <input v-model="form.mp_public_key" class="form-input" placeholder="APP_USR-…" />
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      <div style="display:flex;justify-content:flex-end;margin-top:0.5rem;">
-        <button type="submit" class="btn btn-primary" :disabled="saving">
+      <!-- ── PLAN ───────────────────────────────────── -->
+      <div class="acc-item" :class="{ open: openSection === 'plan' }">
+        <button type="button" class="acc-head" @click="toggleSection('plan')">
+          <span class="acc-icon" style="background:rgba(234,179,8,.12);color:#eab308;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+          </span>
+          <div class="acc-meta">
+            <strong>Plan y Cuenta</strong>
+            <small>Suscripción, facturación y datos de acceso</small>
+          </div>
+          <svg class="acc-chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="acc-body">
+          <div class="acc-inner">
+            <!-- Plan actual banner -->
+            <div class="current-plan-banner">
+              <span class="cp-label">Plan actual</span>
+              <span class="cp-name">{{ auth.user?.plan_status === 'trial' ? 'Prueba Gratis' : auth.user?.plan_status === 'monthly' ? 'Mensual Premium' : 'Anual Gold' }}</span>
+            </div>
+
+            <!-- Opciones -->
+            <div class="plans-row">
+              <div class="plan-card" :class="{ active: auth.user?.plan_status === 'monthly' }">
+                <div class="plan-name">Mensual</div>
+                <div class="plan-price">$35.000<small>/mes</small></div>
+                <p class="plan-desc">Facturas y productos ilimitados.</p>
+                <button type="button" class="btn btn-xs btn-ghost w-full" :disabled="paying === 'monthly'" @click="pay('monthly')">
+                  <span v-if="paying === 'monthly'" class="spinner"></span>
+                  <span v-else>{{ auth.user?.plan_status === 'monthly' ? 'Renovar' : 'Elegir' }}</span>
+                </button>
+              </div>
+              <div class="plan-card featured" :class="{ active: auth.user?.plan_status === 'yearly' }">
+                <div class="plan-badge">Mejor oferta</div>
+                <div class="plan-name">Anual</div>
+                <div class="plan-price">$310.000<small>/año</small></div>
+                <p class="plan-desc">2 meses gratis + soporte prioritario.</p>
+                <button type="button" class="btn btn-xs btn-primary w-full" :disabled="paying === 'yearly'" @click="pay('yearly')">
+                  <span v-if="paying === 'yearly'" class="spinner"></span>
+                  <span v-else>{{ auth.user?.plan_status === 'yearly' ? 'Renovar' : 'Elegir' }}</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Cancelar -->
+            <div v-if="auth.user?.plan_status !== 'trial'" class="cancel-row">
+              <button type="button" class="btn btn-xs btn-ghost" style="color:#f87171;" @click="cancelSubscription">Cancelar renovación automática</button>
+            </div>
+
+            <div class="divider"></div>
+
+            <!-- Cuenta -->
+            <p class="label-bold mb-3">Datos de la cuenta</p>
+            <div class="account-row">
+              <span class="text-muted text-sm">Nombre</span>
+              <span class="font-bold text-sm">{{ auth.user?.name }}</span>
+            </div>
+            <div class="account-row">
+              <span class="text-muted text-sm">Email</span>
+              <span class="font-bold text-sm">{{ auth.user?.email }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── SAVE BAR ────────────────────────────────── -->
+      <div class="save-bar">
+        <span class="text-xs text-muted hide-on-mobile">Los cambios guardan toda la configuración.</span>
+        <button type="submit" class="btn btn-primary save-btn" :disabled="saving">
           <span v-if="saving" class="spinner"></span>
-          <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-          Guardar Cambios
+          <template v-else>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+            Guardar Configuración
+          </template>
         </button>
       </div>
+
     </form>
 
-    <div class="toast">
-      <Transition name="fade">
-        <div v-if="toast" class="toast-item" :class="toast.type">{{ toast.msg }}</div>
-      </Transition>
-    </div>
+    <!-- Toast -->
+    <Transition name="t">
+      <div v-if="toast" class="toast-float" :class="toast.type">{{ toast.msg }}</div>
+    </Transition>
   </div>
 </template>
 
 <style scoped>
-.settings-layout { display: flex; flex-direction: column; gap: 1.5rem; max-width: 760px; }
+.settings-page { max-width: 760px; padding-bottom: 6rem; }
 
-.settings-section-header {
+/* ── ACORDEÓN ─────────────────────────────────────── */
+.accordion-wrap { display: flex; flex-direction: column; gap: 0.6rem; }
+
+.acc-item {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--bg-surface);
+  overflow: hidden;
+  transition: border-color .25s, box-shadow .25s;
+}
+.acc-item.open {
+  border-color: rgba(99,102,241,.4);
+  box-shadow: 0 4px 24px rgba(0,0,0,.12);
+}
+
+/* Header ─────────────────────────────────────────── */
+.acc-head {
+  width: 100%; display: flex; align-items: center; gap: 1rem;
+  padding: 1.1rem 1.25rem;
+  background: none; border: none; cursor: pointer; text-align: left;
+}
+.acc-head:hover .acc-meta strong { color: var(--primary); }
+
+.acc-icon {
+  width: 40px; height: 40px; border-radius: 11px;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+
+.acc-meta { flex: 1; min-width: 0; }
+.acc-meta strong { display: block; font-size: 0.92rem; font-weight: 700; color: var(--text-primary); transition: color .2s; }
+.acc-meta small  { display: block; font-size: 0.76rem; color: var(--text-muted); margin-top: 1px; }
+
+.acc-chevron { color: var(--text-faint); transition: transform .3s; flex-shrink: 0; }
+.open .acc-chevron { transform: rotate(180deg); color: var(--primary); }
+
+/* Status Pills */
+.status-pill { font-size: 0.65rem; font-weight: 800; padding: 3px 9px; border-radius: 20px; flex-shrink: 0; }
+.status-pill.ok  { background: rgba(16,185,129,.15); color: #10b981; }
+.status-pill.off { background: rgba(99,102,241,.1);  color: var(--text-muted); }
+
+/* Body ───────────────────────────────────────────── */
+.acc-body {
+  display: grid; grid-template-rows: 0fr;
+  transition: grid-template-rows .3s cubic-bezier(.4,0,.2,1), opacity .2s;
+  opacity: 0;
+}
+.open .acc-body { grid-template-rows: 1fr; opacity: 1; }
+.acc-body > * { overflow: hidden; }
+
+.acc-inner {
+  padding: 0 1.25rem 1.5rem;
+  border-top: 1px solid rgba(255,255,255,.04);
+  padding-top: 1.25rem;
+}
+
+/* ── FIELDS ───────────────────────────────────────── */
+.label-bold { font-size: 0.82rem; font-weight: 700; color: var(--text-primary); }
+
+.logo-row { display: flex; align-items: center; gap: 1.5rem; padding: 1rem; background: rgba(255,255,255,.02); border-radius: 12px; margin-bottom: 1.25rem; }
+.logo-box { width: 68px; height: 68px; border-radius: 10px; background: var(--bg-card); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0; font-size: 0.65rem; font-weight: 700; color: var(--text-faint); }
+.logo-box img { width: 100%; height: 100%; object-fit: contain; }
+
+.info-pill {
   display: flex; align-items: center; gap: 1rem;
-  margin-bottom: 1.5rem;
-  padding-bottom: 1rem;
-  border-bottom: 1px solid var(--border);
+  background: rgba(99,102,241,.06); border: 1px solid rgba(99,102,241,.12);
+  border-radius: 10px; padding: 0.85rem 1rem;
 }
-.settings-icon {
-  width: 40px; height: 40px;
-  background: rgba(99,102,241,0.12);
-  color: var(--primary);
-  border-radius: var(--radius-md);
-  display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0;
+.catalog-code { display: block; font-family: monospace; font-size: 0.7rem; color: var(--primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Theme dots */
+.theme-pick { display: flex; gap: 0.6rem; margin-top: 0.5rem; }
+.tdot { width: 26px; height: 26px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; transition: .2s; }
+.tdot.sel   { transform: scale(1.2); outline: 2px solid var(--primary); outline-offset: 2px; }
+.tdot.white  { background:#fff; border-color:#ccc; }
+.tdot.black  { background:#000; }
+.tdot.blue   { background:#2563eb; }
+.tdot.pink   { background:#db2777; }
+.tdot.purple { background:#7c3aed; }
+
+.toggle-row { display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer; margin-top: 0.75rem; }
+
+.divider { height: 1px; background: var(--border); margin: 1.25rem 0; }
+
+/* Steps AFIP */
+.step-row { display: flex; gap: 1rem; }
+.step-bubble { width: 26px; height: 26px; border-radius: 50%; background: var(--primary); color: #fff; font-size: 0.75rem; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.csr-box { background: #0d1117; border: 1px solid var(--border); border-radius: 10px; padding: 1rem; margin-top: 1rem; }
+.csr-pre { font-family: monospace; font-size: 10px; color: #58a6ff; white-space: pre-wrap; word-break: break-all; max-height: 100px; overflow-y: auto; margin: 0; }
+
+.connected-box { display: flex; align-items: center; gap: 1rem; padding: 1rem; background: rgba(16,185,129,.06); border: 1px solid rgba(16,185,129,.15); border-radius: 12px; }
+.check-circle { width: 34px; height: 34px; border-radius: 50%; background: #10b981; color: #fff; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+
+/* Plans */
+.current-plan-banner { background: linear-gradient(135deg, #1e293b, #0f172a); border-radius: 12px; padding: 1rem 1.25rem; margin-bottom: 1rem; }
+.cp-label { display: block; font-size: 0.65rem; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: var(--text-faint); }
+.cp-name  { display: block; font-size: 1.2rem; font-weight: 900; color: #fff; margin-top: 2px; }
+
+.plans-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.plan-card { padding: 1.1rem; border: 1px solid var(--border); border-radius: 12px; position: relative; display: flex; flex-direction: column; gap: 0.5rem; }
+.plan-card.featured { border-color: var(--primary); }
+.plan-card.active   { border-color: #10b981; box-shadow: 0 0 0 2px rgba(16,185,129,.15); }
+.plan-badge { position: absolute; top: -9px; right: 10px; background: var(--primary); color: #fff; font-size: 0.6rem; font-weight: 800; padding: 2px 8px; border-radius: 20px; }
+.plan-name  { font-size: 0.85rem; font-weight: 700; }
+.plan-price { font-size: 1.2rem; font-weight: 900; color: var(--primary); }
+.plan-price small { font-size: 0.75rem; color: var(--text-muted); font-weight: 500; }
+.plan-desc  { font-size: 0.78rem; color: var(--text-muted); flex: 1; }
+
+.cancel-row { text-align: center; margin-top: 0.75rem; }
+.account-row { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0; border-bottom: 1px solid rgba(255,255,255,.04); }
+
+/* ── SAVE BAR ─────────────────────────────────────── */
+.save-bar {
+  position: fixed; bottom: 0; left: 240px; right: 0;
+  display: flex; align-items: center; justify-content: flex-end; gap: 1.5rem;
+  padding: 0.9rem 2rem;
+  background: rgba(15,23,42,.85); backdrop-filter: blur(12px);
+  border-top: 1px solid rgba(255,255,255,.06);
+  z-index: 100;
 }
-.settings-title { font-size: 0.95rem; font-weight: 700; }
-.settings-sub { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.1rem; }
-
-.settings-fields { display: flex; flex-direction: column; gap: 1rem; }
-
-.info-box {
-  display: flex; align-items: center; gap: 0.6rem;
-  background: rgba(99,102,241,0.08);
-  border: 1px solid rgba(99,102,241,0.15);
-  border-radius: var(--radius-sm);
-  padding: 0.7rem 1rem;
-  font-size: 0.85rem;
-  color: var(--text-muted);
+.save-btn {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.65rem 2rem; border-radius: 100px; font-weight: 700;
+  box-shadow: 0 0 20px rgba(59,130,246,.25); transition: all .2s;
 }
+.save-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 0 30px rgba(59,130,246,.45); }
 
-.account-info-grid { display: flex; flex-direction: column; gap: 0.85rem; }
-.account-info-item { display: flex; align-items: center; justify-content: space-between; }
-
-/* ARCA Steps */
-.step-box { display: flex; gap: 1rem; padding: 1rem; background: var(--bg-surface); border: 1px dashed var(--border); border-radius: var(--radius-md); }
-.step-num { width: 24px; height: 24px; background: var(--primary); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: bold; flex-shrink: 0; }
-.csr-result { margin-top: 1rem; padding: 1rem; background: #1e1e1e; border-radius: var(--radius-sm); border: 1px solid var(--border); }
-.csr-code { font-family: monospace; font-size: 10px; color: #a5d6ff; white-space: pre-wrap; word-break: break-all; max-height: 120px; overflow-y: auto; }
-.info-box.success { background: rgba(52,211,153,0.1); border-color: rgba(52,211,153,0.2); color: var(--success); }
-
-/* Logo Upload */
-.logo-upload-wrap { display: flex; align-items: center; gap: 1.5rem; margin-bottom: 0.5rem; padding: 1rem; background: var(--bg-surface); border-radius: var(--radius-md); border: 1px solid var(--border); }
-.logo-preview-box { width: 80px; height: 80px; border-radius: var(--radius-md); background: #f1f5f9; border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0; }
-.logo-preview-img { width: 100%; height: 100%; object-fit: contain; }
-.logo-placeholder { font-size: 0.7rem; color: var(--text-faint); font-weight: 700; text-transform: uppercase; }
-.color-selector { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 0.5rem; }
-.color-option { 
-  display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; border: 1px solid var(--border); 
-  border-radius: 12px; cursor: pointer; transition: all 0.2s; background: white;
+/* ── TOAST ────────────────────────────────────────── */
+.toast-float {
+  position: fixed; top: 1.5rem; right: 1.5rem; z-index: 9999;
+  padding: 0.75rem 1.5rem; border-radius: 12px; font-weight: 600; color: #fff;
+  box-shadow: 0 8px 24px rgba(0,0,0,.25);
 }
-.color-option:hover { border-color: var(--primary); background: #f8faff; }
-.color-option.active { border-color: var(--primary); background: #eff6ff; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
-.hidden-radio { position: absolute; opacity: 0; width: 0; height: 0; }
-.color-dot { width: 14px; height: 14px; border-radius: 4px; }
-.dot-white { background: #fff; border: 1px solid #ddd; }
-.dot-black { background: #0f172a; }
-.dot-blue { background: #1e40af; }
-.dot-pink { background: #db2777; }
-.dot-purple { background: #6d28d9; }
-.color-name { font-size: 0.8rem; font-weight: 600; color: var(--text-primary); }
+.toast-float.success { background: #10b981; }
+.toast-float.error   { background: #ef4444; }
+
+.t-enter-active, .t-leave-active { transition: all .35s; }
+.t-enter-from { opacity: 0; transform: translateX(40px); }
+.t-leave-to   { opacity: 0; transform: translateX(40px); }
+
+/* ── RESPONSIVE ───────────────────────────────────── */
+@media (max-width: 900px) {
+  .save-bar { left: 0; justify-content: center; }
+  .hide-on-mobile { display: none; }
+  .plans-row { grid-template-columns: 1fr; }
+}
 </style>

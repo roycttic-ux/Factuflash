@@ -11,7 +11,7 @@ class RecipientController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $recipients = Recipient::where('user_id', $request->user()->id)
+        $recipients = Recipient::where('user_id', $request->user()->system_owner_id)
             ->orderBy('created_at', 'desc')
             ->get();
 
@@ -28,7 +28,7 @@ class RecipientController extends Controller
             'address' => 'nullable|string|max:255',
         ]);
 
-        $validated['user_id'] = $request->user()->id;
+        $validated['user_id'] = $request->user()->system_owner_id;
 
         $recipient = Recipient::create($validated);
 
@@ -38,7 +38,7 @@ class RecipientController extends Controller
     public function show(Request $request, int $id): JsonResponse
     {
         $recipient = Recipient::where('id', $id)
-            ->where('user_id', $request->user()->id)
+            ->where('user_id', $request->user()->system_owner_id)
             ->first();
 
         if (!$recipient) {
@@ -51,7 +51,7 @@ class RecipientController extends Controller
     public function update(Request $request, int $id): JsonResponse
     {
         $recipient = Recipient::where('id', $id)
-            ->where('user_id', $request->user()->id)
+            ->where('user_id', $request->user()->system_owner_id)
             ->first();
 
         if (!$recipient) {
@@ -74,7 +74,7 @@ class RecipientController extends Controller
     public function destroy(Request $request, int $id): JsonResponse
     {
         $recipient = Recipient::where('id', $id)
-            ->where('user_id', $request->user()->id)
+            ->where('user_id', $request->user()->system_owner_id)
             ->first();
 
         if (!$recipient) {

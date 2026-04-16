@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter, useRoute, RouterView, RouterLink } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
@@ -8,14 +8,22 @@ const route = useRoute()
 const auth = useAuthStore()
 const sidebarOpen = ref(true)
 
-const navItems = [
-  { to: '/dashboard',   label: 'Dashboard',   icon: 'grid' },
-  { to: '/facturas',    label: 'Facturas',     icon: 'file-text' },
-  { to: '/productos',   label: 'Productos',    icon: 'package' },
-  { to: '/clientes',    label: 'Clientes',     icon: 'users' },
-  { label: 'Catálogo Público', icon: 'external-link', isExternal: true },
-  { to: '/configuracion', label: 'Configuración', icon: 'settings' },
-]
+const navItems = computed(() => {
+  const items = [
+    { to: '/dashboard',   label: 'Dashboard',   icon: 'grid' },
+    { to: '/facturas',    label: 'Facturas',     icon: 'file-text' },
+    { to: '/productos',   label: 'Productos',    icon: 'package' },
+    { to: '/clientes',    label: 'Clientes',     icon: 'users' },
+    { to: '/cajas',       label: 'Empleados',    icon: 'briefcase', hideForCashier: true },
+    { label: 'Catálogo Público', icon: 'external-link', isExternal: true },
+    { to: '/suscripcion', label: 'Suscripción',  icon: 'credit-card', hideForCashier: true },
+    { to: '/configuracion', label: 'Configuración', icon: 'settings', hideForCashier: true },
+  ]
+  if (auth.user?.role === 'cashier') {
+    return items.filter(i => !i.hideForCashier)
+  }
+  return items
+})
 
 function isActive(path: string) {
   return route.path.startsWith(path)
@@ -27,7 +35,7 @@ async function logout() {
 }
 
 function openCatalog() {
-  const link = window.location.origin + window.location.pathname + '#/catalogo/' + auth.user?.id
+  const link = window.location.origin + window.location.pathname + '#/catalogo/' + (auth.user?.owner_id || auth.user?.id)
   window.open(link, '_blank')
 }
 </script>
@@ -46,7 +54,7 @@ function openCatalog() {
             <polyline points="10 9 9 9 8 9"/>
           </svg>
         </div>
-        <span class="logo-text">FacturaYa</span>
+        <span class="logo-text">FactuFlash</span>
         <button class="sidebar-toggle btn btn-icon btn-ghost" @click="sidebarOpen = !sidebarOpen">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/>
@@ -97,6 +105,14 @@ function openCatalog() {
               <template v-else-if="item.icon === 'settings'">
                 <circle cx="12" cy="12" r="3"/>
                 <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+              </template>
+              <template v-else-if="item.icon === 'briefcase'">
+                <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/>
+                <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
+              </template>
+              <template v-else-if="item.icon === 'credit-card'">
+                <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
+                <line x1="1" y1="10" x2="23" y2="10"/>
               </template>
             </svg>
             <span class="nav-label">{{ item.label }}</span>

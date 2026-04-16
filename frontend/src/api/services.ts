@@ -61,4 +61,20 @@ export const catalogApi = {
   get: (userId: number) => api.get(`/public/catalog/${userId}`),
 }
 
+export const subscriptionApi = {
+  plans: () => api.get('/subscription/plans'),
+  checkout: (plan: string) => api.post('/subscription/checkout', { plan }),
+  status: () => api.get('/subscription/status'),
+  cancel: () => api.post('/subscription/cancel'),
+}
 
+export const mpApi = {
+  createPreference: (data: object) => api.post('/mp/preference', data),
+  createSubscription: (plan: string) => api.post('/mp/subscription-preference', { plan }),
+}
+
+export const cashierApi = {
+  list: () => api.get('/cashiers'),
+  create: (data: object) => api.post('/cashiers', data),
+  delete: (id: number) => api.delete(`/cashiers/${id}`),
+}

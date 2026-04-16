@@ -4,7 +4,10 @@
       "Bash(cmd:*)",
       "Bash(/c/xampp/php/php.exe:*)",
       "WebSearch",
-      "WebFetch(domain:ayuda.nuthost.com)"
+      "WebFetch(domain:ayuda.nuthost.com)",
+      "Bash(git:*)",
+      "Bash(where wkhtmltopdf:*)",
+      "Bash(netstat -ano)"
     ]
   }
 }

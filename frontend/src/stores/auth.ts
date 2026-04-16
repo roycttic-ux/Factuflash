@@ -8,6 +8,10 @@ export interface User {
   email: string
   company_name: string | null
   plan_status: string
+  days_left: number
+  role: string
+  owner_id: number | null
+  cash_register_name: string | null
 }
 
 export const useAuthStore = defineStore('auth', () => {

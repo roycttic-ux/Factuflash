@@ -52,6 +52,11 @@ Route::prefix('v1')->group(function () {
         // Dashboard
         Route::get('/dashboard/stats', [DashboardController::class, 'stats']);
 
+        // Employees / Cashiers
+        Route::get('/cashiers', [\App\Http\Controllers\Api\V1\CashierController::class, 'index']);
+        Route::post('/cashiers', [\App\Http\Controllers\Api\V1\CashierController::class, 'store']);
+        Route::delete('/cashiers/{id}', [\App\Http\Controllers\Api\V1\CashierController::class, 'destroy']);
+
         // Settings
         Route::get('/settings', [SettingsController::class, 'show']);
         Route::put('/settings', [SettingsController::class, 'update']);
@@ -64,8 +69,16 @@ Route::prefix('v1')->group(function () {
 
         // Mercado Pago
         Route::post('/mp/preference', [\App\Http\Controllers\Api\V1\MercadoPagoController::class, 'createPreference']);
+        Route::post('/mp/subscription-preference', [\App\Http\Controllers\Api\V1\MercadoPagoController::class, 'createSubscriptionPreference']);
+
+        // Suscripciones
+        Route::get('/subscription/plans', [\App\Http\Controllers\Api\V1\SubscriptionController::class, 'plans']);
+        Route::post('/subscription/checkout', [\App\Http\Controllers\Api\V1\SubscriptionController::class, 'createCheckout']);
+        Route::get('/subscription/status', [\App\Http\Controllers\Api\V1\SubscriptionController::class, 'status']);
+        Route::post('/subscription/cancel', [\App\Http\Controllers\Api\V1\SubscriptionController::class, 'cancel']);
     });
 
     // Webhooks (Públicos)
     Route::post('/webhooks/mp', [\App\Http\Controllers\Api\V1\MercadoPagoController::class, 'webhook'])->name('mp.webhook');
+    Route::post('/webhooks/subscription', [\App\Http\Controllers\Api\V1\SubscriptionController::class, 'webhook'])->name('subscription.webhook');
 });

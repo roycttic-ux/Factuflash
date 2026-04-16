@@ -13,6 +13,7 @@ class Invoice extends Model
 
     protected $fillable = [
         'user_id',
+        'cashier_id',
         'recipient_id',
         'invoice_number',
         'cae',
@@ -39,6 +40,11 @@ class Invoice extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function cashier(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'cashier_id');
     }
 
     public function recipient(): BelongsTo

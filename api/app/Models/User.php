@@ -26,6 +26,8 @@ class User extends Authenticatable
         'logo_path',
         'plan_status',
         'trial_expires_at',
+        'owner_id',
+        'cash_register_name',
     ];
 
     protected $hidden = [
@@ -33,12 +35,27 @@ class User extends Authenticatable
         'remember_token',
     ];
 
+    protected $appends = ['days_left', 'system_owner_id'];
+
+    public function getSystemOwnerIdAttribute()
+    {
+        // Si el usuario tiene owner_id (es empleado), devuelve el jefe. Si no, se devuelve a sí mismo.
+        return $this->owner_id ?? $this->id;
+    }
+
     protected function casts(): array
     {
         return [
             'password' => 'hashed',
             'trial_expires_at' => 'datetime',
         ];
+    }
+
+    public function getDaysLeftAttribute()
+    {
+        if (!$this->trial_expires_at) return 0;
+        $diff = now()->diffInDays($this->trial_expires_at, false);
+        return $diff > 0 ? (int)$diff : 0;
     }
 
     public function products(): HasMany
@@ -54,6 +71,12 @@ class User extends Authenticatable
     public function invoices(): HasMany
     {
         return $this->hasMany(Invoice::class);
+    }
+
+    // Facturas donde este usuario fue el cajero (no el dueño)
+    public function cashierInvoices(): HasMany
+    {
+        return $this->hasMany(Invoice::class, 'cashier_id');
     }
 
     public function settings(): HasOne

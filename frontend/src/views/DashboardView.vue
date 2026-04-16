@@ -2,12 +2,16 @@
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { dashboardApi } from '@/api/services'
+import { useAuthStore } from '@/stores/auth'
+
+const auth = useAuthStore()
 
 const router = useRouter()
 const loading = ref(true)
 const stats = ref({ monthly_total: 0, invoice_count: 0, product_count: 0, low_stock_count: 0 })
 const recentInvoices = ref<any[]>([])
 const topProducts = ref<any[]>([])
+const salesByCashier = ref<any[]>([])
 
 onMounted(async () => {
   try {
@@ -15,6 +19,7 @@ onMounted(async () => {
     stats.value = res.data.stats
     recentInvoices.value = res.data.recent_invoices
     topProducts.value = res.data.top_products
+    salesByCashier.value = res.data.sales_by_cashier
   } finally {
     loading.value = false
   }
@@ -77,6 +82,38 @@ function statusLabel(s: string) {
       <button class="btn btn-primary" @click="router.push('/facturas/nueva')">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         Nueva Factura
+      </button>
+    </div>
+
+    <!-- BANNER DE ESTADO DE CUENTA -->
+    <div 
+      v-if="auth.user && auth.user.role === 'owner'"
+      class="account-status-banner" 
+      :class="[auth.user.plan_status === 'trial' ? 'status-trial' : 'status-paid']"
+    >
+      <div class="status-content">
+        <div class="status-icon">
+          <svg v-if="auth.user.plan_status === 'trial'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+          <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        </div>
+        <div class="status-text">
+          <p class="status-main">
+            {{ auth.user.plan_status === 'trial' ? 'Estás en el período de PRUEBA GRATUITA' : 'Tu suscripción está ACTIVA' }}
+          </p>
+          <p class="status-sub">
+            {{ auth.user.days_left > 0 
+                ? `Te quedan ${auth.user.days_left} días de sistema. ¡Aprovechalos!` 
+                : 'Tu período ha vencido. ¡Actualizá tu cuenta para seguir operando!' 
+            }}
+          </p>
+        </div>
+      </div>
+      <button 
+        v-if="auth.user.plan_status === 'trial' || auth.user.days_left <= 0"
+        class="btn btn-white btn-sm"
+        @click="router.push('/configuracion')"
+      >
+        Actualizar mi Plan ⭐
       </button>
     </div>
 
@@ -189,25 +226,68 @@ function statusLabel(s: string) {
           </div>
         </div>
       </div>
+
+      <!-- Ventas por Caja (Solo vista para Jefe y con cajas activas) -->
+      <div v-if="salesByCashier && salesByCashier.length > 0" class="card" style="margin-top:1.5rem;">
+         <div class="card-head">
+            <h2 class="section-title">Desglose por Cajero / Sucursal</h2>
+         </div>
+         <div class="table-wrap" style="margin-top:1rem;">
+            <table>
+               <thead>
+                  <tr>
+                     <th>Identificador del Cajero</th>
+                     <th>Caja / Sucursal</th>
+                     <th class="text-right">Volumen de Facturas</th>
+                     <th class="text-right">Total Recaudado</th>
+                  </tr>
+               </thead>
+               <tbody>
+                  <tr v-for="sc in salesByCashier" :key="sc.cashier_id || 0">
+                     <td>
+                        <div class="font-bold">{{ sc.cashier ? sc.cashier.name : 'Ventas del Jefe (Dueño)' }}</div>
+                     </td>
+                     <td><span class="badge badge-primary">{{ sc.cashier ? sc.cashier.cash_register_name : 'Principal' }}</span></td>
+                     <td class="text-right font-medium">{{ sc.total_invoices }} comprobantes</td>
+                     <td class="text-right font-semibold color-primary">{{ formatARS(sc.total_sales) }}</td>
+                  </tr>
+               </tbody>
+            </table>
+         </div>
+      </div>
     </template>
   </div>
 </template>
 
 <style scoped>
-.card-head {
-  display: flex; align-items: center; justify-content: space-between;
+/* BANNER ESTADO */
+.account-status-banner {
+  margin: 1.5rem 0;
+  padding: 1.25rem 1.5rem;
+  border-radius: var(--radius-lg);
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  color: white;
+  animation: slideDown 0.4s ease;
 }
-.section-title { font-size: 1rem; font-weight: 700; }
-.mono { font-family: 'Courier New', monospace; font-size: 0.82rem; color: var(--text-muted); }
+.status-trial { background: linear-gradient(135deg, #f59e0b, #d97706); box-shadow: 0 4px 15px rgba(245, 158, 11, 0.2); }
+.status-paid { background: linear-gradient(135deg, #10b981, #059669); box-shadow: 0 4px 15px rgba(16, 185, 129, 0.2); }
 
-.top-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 0; border-bottom: 1px solid var(--border); }
-.top-item:last-child { border: none; }
-.top-rank { width: 24px; height: 24px; border-radius: 6px; background: var(--bg-elevated); display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 800; color: var(--primary); }
-.top-name { font-size: 0.875rem; font-weight: 600; color: var(--text-primary); }
-.top-qty { font-size: 0.75rem; color: var(--text-muted); }
-.empty-mini { text-align: center; padding: 2rem 0; color: var(--text-faint); font-size: 0.8rem; }
+.status-content { display: flex; align-items: center; gap: 1rem; }
+.status-icon { width: 44px; height: 44px; background: rgba(255,255,255,0.2); border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.status-main { font-weight: 700; font-size: 0.9rem; margin: 0; }
+.status-sub { font-size: 0.75rem; opacity: 0.9; margin: 0.15rem 0 0; }
 
-@media (max-width: 900px) {
-  .dashboard-grid { grid-template-columns: 1fr !important; }
+.btn-white { background: white; color: #d97706; border: none; font-weight: 700; }
+.status-paid .btn-white { color: #059669; }
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
+
+@media (max-width: 640px) {
+  .account-status-banner { flex-direction: column; text-align: center; }
+  .status-content { flex-direction: column; }
+}
+
 </style>

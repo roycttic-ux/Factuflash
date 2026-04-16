@@ -26,13 +26,6 @@ function formatARS(n: number) {
 function formatDate(d: string) {
   return new Date(d).toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' })
 }
-function statusBadge(s: string) {
-  return s === 'paid' ? 'badge-success' : s === 'pending' ? 'badge-warning' : 'badge-muted'
-}
-function statusLabel(s: string) {
-  return s === 'paid' ? 'Pagada' : s === 'pending' ? 'Pendiente' : s
-}
-
 function printInvoice() {
   window.print()
 }

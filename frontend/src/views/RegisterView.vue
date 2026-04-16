@@ -1,14 +1,17 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { authApi } from '@/api/services'
 
+const route = useRoute()
+const plan = (route.query.plan as string) || 'trial'
 const router = useRouter()
 const form = ref({
   name: '',
   email: '',
   password: '',
   company_name: '',
+  plan_status: plan === 'trial' ? 'trial' : 'pending_payment' // Controlamos el estado inicial
 })
 const error = ref('')
 const loading = ref(false)
@@ -51,8 +54,12 @@ async function handleRegister() {
         <h1 class="brand-name">FacturaYa</h1>
       </div>
 
-      <h2 class="login-title">Probá 7 días gratis 🚀</h2>
-      <p class="login-sub">Empezá a facturar hoy mismo sin compromiso.</p>
+      <h2 class="login-title">
+        {{ plan === 'monthly' ? 'Plan Mensual 📋' : plan === 'yearly' ? 'Plan Anual ⭐' : 'Probá 7 días gratis 🚀' }}
+      </h2>
+      <p class="login-sub">
+        {{ plan === 'trial' ? 'Empezá a facturar hoy mismo sin compromiso.' : 'Completá tus datos para activar tu suscripción.' }}
+      </p>
 
       <form @submit.prevent="handleRegister" class="login-form">
         <div class="form-group">
@@ -86,7 +93,7 @@ async function handleRegister() {
 
         <button type="submit" class="btn btn-primary w-full" :disabled="loading" style="justify-content:center;margin-top:0.5rem;">
           <span v-if="loading" class="spinner"></span>
-          <span v-else>Empezar mi prueba ahora</span>
+          <span v-else>{{ plan === 'trial' ? 'Empezar mi prueba ahora' : 'Crear cuenta y pagar' }}</span>
         </button>
 
         <p class="text-center text-xs mt-4">

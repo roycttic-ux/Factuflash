@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>FacturaYa — Sistema de Facturación y Stock Pro</title>
-  <meta name="description" content="FacturaYa es el sistema de facturación todo-en-uno para PYMES argentinas. Control de stock, sincronización con el dólar, facturación electrónica con AFIP y más." />
+  <title>FacturaYa — Sistema de Facturación y Stock Pro para PYMEs</title>
+  <meta name="description" content="FacturaYa es el sistema de facturación todo-en-uno para PYMES argentinas. Control de stock, facturación electrónica con AFIP, Mercado Pago y precios sincronizados al dólar." />
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -18,8 +18,9 @@
     <div class="nav-links">
       <a href="#features" class="btn btn-ghost">Funciones</a>
       <a href="#pricing" class="btn btn-ghost">Precios</a>
-      <a href="./app/#/login" class="btn btn-outline">Ingresar</a>
-      <a href="./app/#/register" class="btn btn-primary">Probar Gratis</a>
+      <a href="#faq" class="btn btn-ghost">Preguntas</a>
+      <a href="../dist/#/login" class="btn btn-outline">Ingresar</a>
+      <a href="../dist/#/register" class="btn btn-primary">Empezar Gratis</a>
     </div>
   </nav>
 
@@ -27,36 +28,52 @@
   <section class="hero">
     <div class="badge">🇦🇷 Hecho para PYMES argentinas</div>
     <h1>
-      Facturá más rápido,<br>
-      <span class="gradient-text">ganás más tiempo.</span>
+      Tu negocio merece<br>
+      <span class="gradient-text">facturación sin fricción.</span>
     </h1>
     <p>
-      El sistema todo-en-uno para gestionar tu stock, emitir facturas electrónicas con AFIP
-      y cobrar con Mercado Pago. Sin complicaciones.
+      Gestioná stock, emití facturas electrónicas con AFIP y cobrá con Mercado Pago.
+      Todo en un solo lugar, desde cualquier dispositivo.
     </p>
     <div class="hero-cta">
-      <a href="./app/#/register" class="btn btn-primary">🚀 Empezar ahora — 7 días gratis</a>
+      <a href="../dist/#/register?plan=trial" class="btn btn-primary">🚀 Empezar 7 días gratis</a>
       <a href="#features" class="btn btn-outline">Ver funciones</a>
     </div>
+    <p class="hero-note">Sin tarjeta de crédito · Sin complicaciones</p>
   </section>
 
-  <!-- STATS -->
-  <div class="stats-bar">
-    <div class="stat">
-      <div class="stat-value">7 días</div>
-      <div class="stat-label">Prueba gratuita completa</div>
+  <!-- SOCIAL PROOF STRIP -->
+  <div class="trust-strip">
+    <div class="trust-item">
+      <span class="trust-icon">🛡️</span>
+      <div>
+        <div class="trust-title">Datos seguros</div>
+        <div class="trust-desc">Encriptación SSL de extremo a extremo</div>
+      </div>
     </div>
-    <div class="stat">
-      <div class="stat-value">100%</div>
-      <div class="stat-label">Compatible con AFIP / ARCA</div>
+    <div class="trust-divider"></div>
+    <div class="trust-item">
+      <span class="trust-icon">⚖️</span>
+      <div>
+        <div class="trust-title">100% Legal</div>
+        <div class="trust-desc">Facturación AFIP/ARCA oficial</div>
+      </div>
     </div>
-    <div class="stat">
-      <div class="stat-value">∞</div>
-      <div class="stat-label">Facturas y productos sin límite</div>
+    <div class="trust-divider"></div>
+    <div class="trust-item">
+      <span class="trust-icon">💬</span>
+      <div>
+        <div class="trust-title">Soporte real</div>
+        <div class="trust-desc">Te ayudamos por WhatsApp</div>
+      </div>
     </div>
-    <div class="stat">
-      <div class="stat-value">$USD</div>
-      <div class="stat-label">Precios sincronizados al dólar</div>
+    <div class="trust-divider"></div>
+    <div class="trust-item">
+      <span class="trust-icon">🔄</span>
+      <div>
+        <div class="trust-title">Cancelá cuando quieras</div>
+        <div class="trust-desc">Sin cláusulas ni permanencia mínima</div>
+      </div>
     </div>
   </div>
 
@@ -70,32 +87,59 @@
       <div class="feature-card">
         <div class="feature-icon">🧾</div>
         <h3>Facturación Electrónica</h3>
-        <p>Generá comprobantes A, B y C conectados a AFIP/ARCA directamente desde el sistema.</p>
+        <p>Generá comprobantes A, B y C conectados a AFIP/ARCA directamente desde el sistema con CAE automático.</p>
       </div>
       <div class="feature-card">
         <div class="feature-icon">📦</div>
         <h3>Control de Stock</h3>
-        <p>Gestioná tu inventario con alertas automáticas cuando el stock baje del umbral crítico.</p>
+        <p>Gestioná tu inventario con alertas automáticas cuando el stock baje del umbral crítico que definas.</p>
       </div>
       <div class="feature-card">
         <div class="feature-icon">💵</div>
-        <h3>Sincronización Dollar</h3>
-        <p>Tus precios en pesos se actualizan automáticamente según la cotización del dólar del día.</p>
+        <h3>Precios en Dólar</h3>
+        <p>Tus precios en pesos se actualizan automáticamente según la cotización del día. Vendé en USD sin complicaciones.</p>
       </div>
       <div class="feature-card">
         <div class="feature-icon">💳</div>
         <h3>Cobro con Mercado Pago</h3>
-        <p>Enviá el link de pago a tu cliente y recibí el pago directamente desde la factura.</p>
+        <p>Enviá el link de pago a tu cliente y recibí el dinero directamente. Sin intermediarios adicionales.</p>
       </div>
       <div class="feature-card">
         <div class="feature-icon">📊</div>
-        <h3>Dashboard en tiempo real</h3>
-        <p>Visualizá tus ventas, clientes activos y métricas de cara al mes desde un solo panel.</p>
+        <h3>Dashboard en Tiempo Real</h3>
+        <p>Visualizá tus ventas, productos más vendidos y métricas clave de tu negocio desde un solo panel.</p>
       </div>
       <div class="feature-card">
         <div class="feature-icon">🔗</div>
-        <h3>Catálogo Público</h3>
-        <p>Compartí un link de tu catálogo de productos con tus precios actualizados automáticamente.</p>
+        <h3>Catálogo Público Online</h3>
+        <p>Generá un link compartible de tu catálogo con precios actualizados al día. Ideal para WhatsApp o redes.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS -->
+  <section id="how" class="how-section">
+    <div class="section-header">
+      <h2>Empezás en 3 minutos</h2>
+      <p>Sin instalaciones, sin complicaciones. Todo en la nube.</p>
+    </div>
+    <div class="steps-grid">
+      <div class="step">
+        <div class="step-num">01</div>
+        <h3>Creá tu cuenta</h3>
+        <p>Registración en 30 segundos. No pedís tarjeta ni datos bancarios.</p>
+      </div>
+      <div class="step-arrow">→</div>
+      <div class="step">
+        <div class="step-num">02</div>
+        <h3>Configurá AFIP</h3>
+        <p>Subí tu certificado digital de AFIP y ya estás listo para facturar.</p>
+      </div>
+      <div class="step-arrow">→</div>
+      <div class="step">
+        <div class="step-num">03</div>
+        <h3>Empezás a facturar</h3>
+        <p>Emití tu primera factura electrónica con CAE en minutos. Sin pomoc.</p>
       </div>
     </div>
   </section>
@@ -103,34 +147,136 @@
   <!-- PRICING -->
   <section id="pricing">
     <div class="section-header">
-      <h2>Un solo plan. <span class="gradient-text">Sin letra chica.</span></h2>
-      <p>Todas las funciones por una tarifa plana mensual.</p>
+      <h2>Planes simples y <span class="gradient-text">transparentes</span></h2>
+      <p>Elegí el plan que mejor se adapte a tu negocio. Sin letra chica.</p>
     </div>
-    <div class="pricing-box">
-      <div class="price-badge">⚡ Plan Único Pro</div>
-      <div class="price">A consultar <span>/ mes</span></div>
-      <p style="color: var(--muted); margin-top: 0.5rem; font-size: 0.9rem;">Precio en pesos, sincronizado al dólar oficial</p>
-      <ul class="price-features">
-        <li><span class="check">✔</span> Facturas electrónicas ilimitadas</li>
-        <li><span class="check">✔</span> Productos y stock sin límite</li>
-        <li><span class="check">✔</span> Clientes ilimitados</li>
-        <li><span class="check">✔</span> Integración AFIP / ARCA</li>
-        <li><span class="check">✔</span> Cobros con Mercado Pago</li>
-        <li><span class="check">✔</span> Dollar-Sync automático</li>
-        <li><span class="check">✔</span> Catálogo público compartible</li>
-        <li><span class="check">✔</span> Soporte por WhatsApp</li>
-      </ul>
-      <a href="./app/#/register" class="btn btn-primary" style="width:100%; justify-content:center; font-size:1.05rem; padding: 0.9rem;">
-        🚀 Empezar 7 días gratis
-      </a>
-      <p style="color: var(--muted); font-size: 0.8rem; margin-top: 1rem;">Sin tarjeta de crédito requerida.</p>
+
+    <div class="pricing-grid">
+
+      <!-- TRIAL -->
+      <div class="plan-card">
+        <div class="plan-header">
+          <div class="plan-name">Prueba</div>
+          <div class="plan-tag">7 días gratis</div>
+        </div>
+        <div class="plan-price">
+          <span class="plan-currency">$</span>
+          <span class="plan-amount">0</span>
+          <span class="plan-period">/ 7 días</span>
+        </div>
+        <p class="plan-desc">Ideal para probar el sistema y ver si es para tu negocio.</p>
+        <ul class="plan-features">
+          <li><span class="check">✔</span> Todas las funciones unlocked</li>
+          <li><span class="check">✔</span> Hasta 50 facturas</li>
+          <li><span class="check">✔</span> 100 productos</li>
+          <li><span class="check">✔</span> Integración AFIP completa</li>
+          <li><span class="check">✔</span> Dashboard y métricas</li>
+          <li><span class="check">✔</span> Catálogo público</li>
+          <li class="off"><span class="x">✘</span> Soporte prioritario</li>
+          <li class="off"><span class="x">✘</span> Integración Mercado Pago</li>
+        </ul>
+        <a href="../dist/#/register?plan=trial" class="btn btn-plan-trial">🚀 Empezar prueba gratis</a>
+        <p class="plan-note">Sin tarjeta requerida</p>
+      </div>
+
+      <!-- MONTHLY -->
+      <div class="plan-card plan-featured">
+        <div class="plan-badge">🔥 Más elegido</div>
+        <div class="plan-header">
+          <div class="plan-name">Mensual</div>
+          <div class="plan-tag">Renovación mensual</div>
+        </div>
+        <div class="plan-price">
+          <span class="plan-currency">$</span>
+          <span class="plan-amount">35.000</span>
+          <span class="plan-period">/ mes</span>
+        </div>
+        <p class="plan-desc">Perfecto para negocios que están empezando o tienen movimiento variable.</p>
+        <ul class="plan-features">
+          <li><span class="check">✔</span> Todo desbloqueado</li>
+          <li><span class="check">✔</span> Facturas ilimitadas</li>
+          <li><span class="check">✔</span> Productos ilimitados</li>
+          <li><span class="check">✔</span> Clientes ilimitados</li>
+          <li><span class="check">✔</span> Integración AFIP + CAE</li>
+          <li><span class="check">✔</span> Integración Mercado Pago</li>
+          <li><span class="check">✔</span> Soporte por WhatsApp</li>
+          <li><span class="check">✔</span> Dashboard completo</li>
+        </ul>
+        <a href="../dist/#/register?plan=monthly" class="btn btn-plan-primary">📋 Elegir Mensual</a>
+        <p class="plan-note">Cancelas cuando quieras</p>
+      </div>
+
+      <!-- YEARLY -->
+      <div class="plan-card plan-yearly">
+        <div class="plan-save">Ahorrás $110.000 vs mensual</div>
+        <div class="plan-header">
+          <div class="plan-name">Anual</div>
+          <div class="plan-tag">2 meses gratis</div>
+        </div>
+        <div class="plan-price">
+          <span class="plan-currency">$</span>
+          <span class="plan-amount">310.000</span>
+          <span class="plan-period">/ año</span>
+        </div>
+        <p class="plan-desc">Ideal para negocios consolidados. El mejor costo-beneficio del mercado.</p>
+        <ul class="plan-features">
+          <li><span class="check">✔</span> Todo desbloqueado</li>
+          <li><span class="check">✔</span> Facturas ilimitadas</li>
+          <li><span class="check">✔</span> Productos ilimitados</li>
+          <li><span class="check">✔</span> Clientes ilimitados</li>
+          <li><span class="check">✔</span> Integración AFIP + CAE</li>
+          <li><span class="check">✔</span> Integración Mercado Pago</li>
+          <li><span class="check">✔</span> Soporte prioritario WhatsApp</li>
+          <li><span class="check">✔</span> Dashboard completo + exportación</li>
+        </ul>
+        <a href="../dist/#/register?plan=yearly" class="btn btn-plan-yearly">⭐ Elegir Anual</a>
+        <p class="plan-note">Precio fija por 12 meses</p>
+      </div>
+
+    </div>
+
+    <p class="pricing-note">
+      💳 Los precios están en pesos argentinos (ARS). Se actualizan según la cotización del dólar oficial de AFIP.
+    </p>
+  </section>
+
+  <!-- FAQ -->
+  <section id="faq" class="faq-section">
+    <div class="section-header">
+      <h2>Preguntas Frecuentes</h2>
+    </div>
+    <div class="faq-grid">
+      <div class="faq-item">
+        <h3>¿Necesito certificado digital de AFIP?</h3>
+        <p>Sí, para emitir facturas electrónicas con CAE necesitás un certificado digital emitido por AFIP. Si no tenés uno, te guiamos en el proceso de obtención. Es un trámite gratuito que hacés desde la web de AFIP.</p>
+      </div>
+      <div class="faq-item">
+        <h3>¿Qué pasa si quiero cancelar?</h3>
+        <p>Podés cancelar tu suscripción en cualquier momento desde el panel de configuración. Si cancelás el plan mensual, seguís teniendo acceso hasta fin de período. No hay permanencias forzosas.</p>
+      </div>
+      <div class="faq-item">
+        <h3>¿Mis datos están seguros?</h3>
+        <p>Sí. Tus datos se almacenan en servidores seguros con redundancia. La conexión es SSL encriptada de extremo a extremo. No compartimos ni vendemos información de ningún cliente.</p>
+      </div>
+      <div class="faq-item">
+        <h3>¿Puedo emitir facturas de todos los tipos?</h3>
+        <p>Sí. FacturaYa soporta comprobantes A, B, C, M, y sus notas crédito asociadas. También maneja las diferentes responsabilidades fiscales (Responsable Inscripto, Monotributista, Consumidor Final).</p>
+      </div>
+      <div class="faq-item">
+        <h3>¿El precio del plan anual es fijo?</h3>
+        <p>Sí. El precio anual se fija al momento de la contratación y se mantiene fijo durante los 12 meses. No sufrís ajustes inesperados durante ese período.</p>
+      </div>
+      <div class="faq-item">
+        <h3>¿Cómo funciona la prueba gratuita?</h3>
+        <p>Tenés 7 días gratis con acceso completo a todas las funciones. Al terminar, elegís el plan que más te convenga. Si no contratás ninguno, tu cuenta queda en pausa hasta que decidas activar una suscripción.</p>
+      </div>
     </div>
   </section>
 
   <!-- CTA -->
   <section class="cta-section">
     <h2>¿Listo para ordenar tu negocio?</h2>
-    <p>Empezá con 7 días gratis. Sin compromisos.</p>
+    <p>Empezá con 7 días gratis. Sin compromisos ni tarjeta.</p>
     <a href="./app/#/register" class="btn btn-primary" style="font-size: 1.05rem; padding: 0.9rem 2.5rem;">
       Crear cuenta gratis →
     </a>
@@ -138,15 +284,26 @@
 
   <!-- FOOTER -->
   <footer>
-    <p>
-      <strong>FacturaYa</strong> — Desarrollado por 
-      <a href="#">Ulises Roig Bonavitta</a> · 
-      Analista de Sistemas · Escuela Da Vinci 🇦🇷
-    </p>
-    <p style="margin-top:0.5rem;">
-      <a href="./app/#/login">Ingresar al sistema</a> · 
-      <a href="./app/#/register">Registrarse</a>
-    </p>
+    <div class="footer-top">
+      <div>
+        <div class="logo" style="margin-bottom: 0.5rem;">⚡ FacturaYa</div>
+        <p style="color: var(--muted); font-size: 0.9rem;">Sistema de Facturación y Stock Pro<br>Diseñado para PYMEs argentinas</p>
+      </div>
+      <div class="footer-links">
+        <a href="#features">Funciones</a>
+        <a href="#pricing">Precios</a>
+        <a href="#faq">Preguntas</a>
+        <a href="../dist/#/login">Ingresar</a>
+        <a href="../dist/#/register">Registrarse</a>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p>
+        <strong>FacturaYa</strong> — Desarrollado por
+        <a href="#">Ulises Roig Bonavitta</a> ·
+        Analista de Sistemas · Escuela Da Vinci 🇦🇷
+      </p>
+    </div>
   </footer>
 
 </body>
