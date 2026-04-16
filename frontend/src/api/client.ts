@@ -1,10 +1,16 @@
 import axios from 'axios'
 
+const isProduction = process.env.NODE_ENV === 'production'
+const baseURL = isProduction 
+  ? '/api/v1' 
+  : 'http://localhost/sistemafacturacion/api/public/api/v1'
+
 const api = axios.create({
-  baseURL: window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-    ? 'http://localhost/sistemafacturacion/api/public/api/v1'
-    : '/api/v1',
-  headers: { Accept: 'application/json' },
+  baseURL,
+  headers: {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+  },
 })
 
 api.interceptors.request.use((config) => {
