@@ -1,0 +1,47 @@
+name: Deploy FactuFlash
+
+on:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Descargar código de GitHub
+        uses: actions/checkout@v4
+
+      - name: 🚀 Subir archivos al servidor
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: TU_HOST_VPS
+          username: ubuntu
+          password: ${{ secrets.VPS_PASSWORD }}
+          source: "."
+          target: "/var/www/factuflash"
+          overwrite: true
+
+      - name: ⚙️ Compilar e instalar dependencias
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: TU_HOST_VPS
+          username: ubuntu
+          password: ${{ secrets.VPS_PASSWORD }}
+          script: |
+            # 1. Instalar Backend
+            cd /var/www/factuflash/api
+            export COMPOSER_ALLOW_SUPERUSER=1
+            composer install --no-dev --optimize-autoloader
+            php artisan migrate --force
+            php artisan config:cache
+            php artisan route:cache
+            sudo chown -R $USER:www-data storage bootstrap/cache
+            sudo chmod -R 775 storage bootstrap/cache
+            
+            # 2. Compilar Frontend
+            cd /var/www/factuflash/frontend
+            npm ci
+            npm run build
