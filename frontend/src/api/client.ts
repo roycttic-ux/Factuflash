@@ -3,7 +3,7 @@ import axios from 'axios'
 const api = axios.create({
   baseURL: window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
     ? 'http://localhost/sistemafacturacion/api/public/api/v1'
-    : '/api',
+    : '/api/v1',
   headers: { Accept: 'application/json' },
 })
 
