@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const isProduction = process.env.NODE_ENV === 'production'
+const isProduction = import.meta.env.PROD
 const baseURL = isProduction 
   ? '/api/v1/' 
   : 'http://localhost/sistemafacturacion/api/public/api/v1/'

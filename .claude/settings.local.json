@@ -7,7 +7,8 @@
       "WebFetch(domain:ayuda.nuthost.com)",
       "Bash(git:*)",
       "Bash(where wkhtmltopdf:*)",
-      "Bash(netstat -ano)"
+      "Bash(netstat -ano)",
+      "Bash(php artisan:*)"
     ]
   }
 }
