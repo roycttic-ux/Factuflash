@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  # ── Base de datos ──
+  # Base de Datos
   mysql:
     image: mysql:8.0
     container_name: factuflash_mysql
@@ -12,68 +12,34 @@ services:
       MYSQL_USER: ${DB_USERNAME}
       MYSQL_PASSWORD: ${DB_PASSWORD}
     volumes:
-      - mysql_data:/var/lib/mysql
+      - db_data:/var/lib/mysql
     networks:
       - factuflash_net
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
-  # ── API Laravel ──
+  # API (Laravel)
   api:
     build:
       context: ./api
       dockerfile: Dockerfile
     container_name: factuflash_api
     restart: always
-    depends_on:
-      mysql:
-        condition: service_healthy
-    environment:
-      APP_ENV: production
-      APP_DEBUG: 'false'
-      APP_URL: ${APP_URL}
-      DB_CONNECTION: mysql
-      DB_HOST: mysql
-      DB_PORT: 3306
-      DB_DATABASE: ${DB_DATABASE}
-      DB_USERNAME: ${DB_USERNAME}
-      DB_PASSWORD: ${DB_PASSWORD}
-      MP_ACCESS_TOKEN: ${MP_ACCESS_TOKEN}
-      MP_PUBLIC_KEY: ${MP_PUBLIC_KEY}
     volumes:
       - ./api:/var/www/html
+    depends_on:
+      - mysql
     networks:
       - factuflash_net
 
-  # ── Frontend Vue (compilado) ──
-  frontend:
+  # Nginx (Todo en uno: Landing + App)
+  nginx:
     build:
       context: .
-      dockerfile: Dockerfile.frontend
-    container_name: factuflash_frontend
-    restart: always
-    volumes:
-      - ./app:/var/www/app
-    networks:
-      - factuflash_net
-
-  # ── Servidor web Nginx ──
-  nginx:
-    image: nginx:stable-alpine
+      dockerfile: Dockerfile.nginx
     container_name: factuflash_nginx
     restart: always
     ports:
       - "80:80"
       - "443:443"
-    volumes:
-      - ./docker/nginx/conf.d:/etc/nginx/conf.d:ro
-      - ./frontend/landing:/var/www/landing
-      - ./frontend/dist:/var/www/app
-      - ./api:/var/www/html
-      - ./docker/nginx/ssl:/etc/nginx/ssl:ro
     depends_on:
       - api
     networks:
@@ -84,5 +50,4 @@ networks:
     driver: bridge
 
 volumes:
-  mysql_data:
-    driver: local
+  db_data:
