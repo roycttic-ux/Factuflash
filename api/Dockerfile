@@ -9,7 +9,8 @@ RUN apk add --no-cache \
     libzip-dev \
     unzip \
     oniguruma-dev \
-    mysql-client
+    mysql-client \
+    bash
 
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install pdo_mysql mbstring gd zip
@@ -22,6 +23,12 @@ COPY . .
 
 RUN composer install --no-dev --optimize-autoloader
 
-RUN chown -R www-data:www-data storage bootstrap/cache
+RUN chown -R www-data:www-data storage bootstrap/cache \
+    && chmod -R 775 storage bootstrap/cache
 
+# Script de arranque: permisos + migraciones + php-fpm
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["php-fpm"]

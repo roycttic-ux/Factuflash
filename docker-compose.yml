@@ -24,7 +24,9 @@ services:
     container_name: factuflash_api
     restart: always
     volumes:
-      - ./api:/var/www/html
+      # Solo persistimos storage/ para logos, certs AFIP, etc.
+      # NO montamos todo ./api porque sobreescribiría el vendor/ del build
+      - api_storage:/var/www/html/storage
     depends_on:
       - mysql
     networks:
@@ -51,3 +53,4 @@ networks:
 
 volumes:
   db_data:
+  api_storage:
