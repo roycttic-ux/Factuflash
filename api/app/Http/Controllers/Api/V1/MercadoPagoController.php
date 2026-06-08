@@ -103,16 +103,50 @@ class MercadoPagoController extends Controller
         return response()->json($response->json());
     }
 
+    public function createPointPaymentIntent(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $settings = $user->settings;
+        $mpToken = env('MP_ACCESS_TOKEN') ?? $settings?->mp_access_token;
+
+        if (!$mpToken) {
+            return response()->json(['error' => 'Mercado Pago no está configurado'], 422);
+        }
+
+        $deviceId = $request->input('device_id');
+        $amount = (float) $request->input('amount');
+        $invoiceId = $request->input('invoice_id');
+
+        $intentData = [
+            'amount' => $amount,
+            'description' => 'Pago Factura #' . $invoiceId,
+            'external_reference' => (string) $invoiceId,
+            'notification_url' => route('mp.webhook'),
+        ];
+
+        // API de Point: https://www.mercadopago.com.ar/developers/es/reference/integrations_api/_point_integration-api_devices_device-id_payment-intents/post
+        $response = Http::withToken($mpToken)
+            ->post("https://api.mercadopago.com/point/integration-api/devices/{$deviceId}/payment-intents", $intentData);
+
+        if ($response->failed()) {
+            return response()->json([
+                'error' => 'Error al enviar orden al dispositivo',
+                'details' => $response->json()
+            ], $response->status());
+        }
+
+        return response()->json($response->json());
+    }
+
     public function webhook(Request $request): JsonResponse
     {
-        // Simplificado para el ejemplo
         $data = $request->all();
+        Log::info("MP Webhook received:", $data);
         
-        if (isset($data['type']) && $data['type'] === 'payment') {
-            $paymentId = $data['data']['id'];
-            
-            // Aquí se consultaría el pago a MP y se marcaría la factura como pagada
-            // omitimos por brevedad pero es el flujo standard
+        // Manejar notificaciones de Point y Checkout
+        if (isset($data['action']) && $data['action'] === 'payment.created') {
+            // Es una notificación de un pago creado (posiblemente desde Point)
+            // Aquí se debería consultar el estado final del pago y marcar la factura
         }
 
         return response()->json(['status' => 'ok']);

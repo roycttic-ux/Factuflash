@@ -28,6 +28,7 @@ class User extends Authenticatable
         'trial_expires_at',
         'owner_id',
         'cash_register_name',
+        'api_token',
     ];
 
     protected $hidden = [
@@ -55,7 +56,7 @@ class User extends Authenticatable
     {
         if (!$this->trial_expires_at) return 0;
         $diff = now()->diffInDays($this->trial_expires_at, false);
-        return $diff > 0 ? (int)$diff : 0;
+        return $diff > 0 ? (int)round($diff) : 0;
     }
 
     public function products(): HasMany

@@ -16,31 +16,57 @@ class UserSetting extends Model
 
     protected $fillable = [
         'user_id',
+        'slug',
         'company_name',
         'company_logo',
         'company_address',
         'company_phone',
         'company_email',
         'company_cuit',
+        'invoice_prefix',
+        'tax_condition',
         'arca_cuit',
         'arca_cert_path',
         'arca_key_path',
         'arca_connected',
+        'arca_pto_vta',
         'dollar_rate',
+        'dollar_rate_mode',
+        'dollar_rate_manual',
         'inflation_rate',
         'whatsapp_number',
         'show_whatsapp_button',
         'mp_access_token',
         'mp_public_key',
         'catalog_theme',
+        'catalog_title',
+        'catalog_description',
+        'catalog_instagram',
+        'catalog_facebook',
+        'catalog_tiktok',
+        'catalog_show_stock',
+        'catalog_show_price',
+        'catalog_grid_columns',
+        'bank_name',
+        'bank_cbu',
+        'bank_alias',
+        'bank_holder',
+        'catalog_video_url',
+        'pos_provider',
+        'pos_clover_merchant_id',
+        'pos_clover_access_token',
     ];
 
     protected function casts(): array
     {
         return [
             'arca_connected' => 'boolean',
+            'arca_pto_vta' => 'integer',
             'dollar_rate' => 'decimal:2',
             'inflation_rate' => 'decimal:2',
+            'catalog_show_stock' => 'boolean',
+            'catalog_show_price' => 'boolean',
+            'catalog_grid_columns' => 'integer',
         ];
     }
 

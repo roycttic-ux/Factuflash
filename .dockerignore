@@ -1,0 +1,16 @@
+node_modules
+frontend/node_modules
+api/vendor
+.git
+.github
+.vscode
+dist
+frontend/dist
+storage/*.key
+.env
+api/.env
+frontend/.env
+*.docx
+*.pdf
+*.pptx
+*.sql

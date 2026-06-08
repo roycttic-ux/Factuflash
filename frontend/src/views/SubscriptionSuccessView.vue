@@ -21,8 +21,8 @@ onMounted(async () => {
 <template>
   <div class="success-page">
     <div class="success-card">
-      <div class="success-icon">🎉</div>
-      <h1>¡Pago confirmado!</h1>
+      <div class="success-icon">ðŸŽ‰</div>
+      <h1>Â¡Pago confirmado!</h1>
       <p class="success-sub">
         Tu suscripción a <strong>FactuFlash {{ planLabel }}</strong> está activa.
         Ya tenés acceso completo al sistema.
@@ -40,7 +40,7 @@ onMounted(async () => {
       </div>
 
       <button class="btn-dashboard" @click="router.push('/dashboard')">
-        Ir al Dashboard →
+        Ir al Dashboard â†’
       </button>
     </div>
   </div>

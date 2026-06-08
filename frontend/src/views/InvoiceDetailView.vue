@@ -24,10 +24,66 @@ function formatARS(n: number) {
   return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(n)
 }
 function formatDate(d: string) {
+  if (!d) return ''
+  // AFIP returns cae_expiry as YYYYMMDD without dashes
+  if (d.length === 8 && !d.includes('-')) {
+    const yyyy = d.substring(0, 4)
+    const mm = d.substring(4, 6)
+    const dd = d.substring(6, 8)
+    d = `${yyyy}-${mm}-${dd}T00:00:00`
+  }
   return new Date(d).toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' })
 }
 function printInvoice() {
   window.print()
+}
+
+function getAfipQrUrl(inv: any) {
+  if (!inv || !inv.cae) return ''
+  
+  // Extract sequential invoice number from the invoice_number string (e.g. "C-0001-00000005" -> 5)
+  const parts = inv.invoice_number.split('-')
+  const nroCmp = parseInt(parts[parts.length - 1]) || 1
+  
+  // Clean CUIT
+  const cuitClean = inv.user?.settings?.arca_cuit ? parseInt(inv.user.settings.arca_cuit.replace(/[^0-9]/g, '')) : 0
+  
+  // Recipient details
+  let tipoDocRec = 99
+  let nroDocRec = 0
+  if (inv.recipient && inv.recipient.document_id) {
+    const cleanDoc = inv.recipient.document_id.replace(/[^0-9]/g, '')
+    nroDocRec = parseInt(cleanDoc) || 0
+    if (cleanDoc.length === 11) tipoDocRec = 80 // CUIT
+    else if (cleanDoc.length === 8) tipoDocRec = 96 // DNI
+  }
+  
+  // Format date to YYYY-MM-DD
+  const dateObj = new Date(inv.created_at)
+  const yyyy = dateObj.getFullYear()
+  const mm = String(dateObj.getMonth() + 1).padStart(2, '0')
+  const dd = String(dateObj.getDate()).padStart(2, '0')
+  const fecha = `${yyyy}-${mm}-${dd}`
+  
+  const qrData = {
+    ver: 1,
+    fecha,
+    cuit: cuitClean,
+    ptoVta: inv.pto_vta || 1,
+    tipoCmp: inv.cbte_tipo || 11,
+    nroCmp,
+    importe: Number(inv.total_local),
+    moneda: "PES",
+    cotiz: 1,
+    tipoDocRec,
+    nroDocRec,
+    tipoCodAut: "E",
+    codAut: parseInt(inv.cae) || 0
+  }
+  
+  const jsonStr = JSON.stringify(qrData)
+  const base64Str = btoa(unescape(encodeURIComponent(jsonStr)))
+  return `https://www.afip.gob.ar/fe/qr/?p=${base64Str}`
 }
 </script>
 
@@ -71,7 +127,11 @@ function printInvoice() {
       <div class="invoice-topbar">
         <div class="invoice-brand">
           <div v-if="invoice.user?.settings?.company_logo" class="inv-logo-img">
-             <img :src="'/sistemafacturacion/api/public/storage/' + invoice.user.settings.company_logo" class="logo-image" />
+             <img 
+               :src="invoice.user.settings.company_logo.startsWith('http') ? invoice.user.settings.company_logo : '/api/storage/' + invoice.user.settings.company_logo.replace('/api/storage/', '')" 
+               class="logo-image" 
+               @error="(e) => (e.target as HTMLImageElement).style.display = 'none'"
+             />
           </div>
           <div v-else class="inv-logo">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -82,9 +142,9 @@ function printInvoice() {
           <div>
             <div class="inv-company">{{ invoice.user?.settings?.company_name || 'Mi Empresa' }}</div>
             <div class="inv-details">
-              <div>{{ invoice.user?.settings?.company_address || 'Dirección no configurada' }}</div>
-              <div>CUIT: {{ invoice.user?.settings?.company_cuit || '00-00000000-0' }}</div>
-              <div>IVA Responsable Monotributo</div>
+              <div v-if="invoice.user?.settings?.company_address">{{ invoice.user.settings.company_address }}</div>
+              <div>CUIT: {{ invoice.user?.settings?.company_cuit || invoice.user?.settings?.arca_cuit || '00-00000000-0' }}</div>
+              <div>{{ invoice.user?.settings?.tax_condition || 'IVA Responsable Inscripto' }}</div>
             </div>
           </div>
         </div>
@@ -120,8 +180,16 @@ function printInvoice() {
           </div>
           <div class="payment-info">
             <div class="inv-section-title">Detalles de Venta</div>
-            <div class="recipient-detail"><strong>Condición de venta:</strong> 
-              {{ invoice.payment_method === 'cash' ? 'Contado / Efectivo' : 'Transferencia' }}
+            <div v-if="!invoice.is_multiple_payment" class="recipient-detail"><strong>Condición de venta:</strong> 
+              {{ invoice.payment_method === 'cash' ? 'Contado / Efectivo' : (invoice.payment_method === 'card' ? 'Tarjeta / POS' : 'Transferencia') }}
+            </div>
+            <div v-else class="recipient-detail">
+              <strong>Condición de venta:</strong> Pago Dividido
+              <div v-for="p in invoice.payments" :key="p.id" class="p-split-row">
+                - {{ p.payment_method === 'cash' ? 'Efectivo' : (p.payment_method === 'card' ? 'Tarjeta' : 'Transferencia') }}: 
+                <strong>{{ formatARS(p.amount) }}</strong>
+                <span v-if="p.details" class="p-details"> ({{ p.details }})</span>
+              </div>
             </div>
             <div class="recipient-detail"><strong>Moneda:</strong> Pesos Argentinos (ARS)</div>
           </div>
@@ -149,8 +217,8 @@ function printInvoice() {
                 </td>
                 <td style="text-align:right;">{{ item.quantity }}</td>
                 <td style="text-align:right;">unidades</td>
-                <td style="text-align:right;">{{ formatARS(item.unit_price_usd * invoice.dollar_rate) }}</td>
-                <td style="text-align:right; font-weight:700;">{{ formatARS(item.unit_price_usd * item.quantity * invoice.dollar_rate) }}</td>
+                <td style="text-align:right;">{{ formatARS(item.unit_price_usd) }}</td>
+                <td style="text-align:right; font-weight:700;">{{ formatARS(item.unit_price_usd * item.quantity) }}</td>
               </tr>
             </tbody>
           </table>
@@ -162,7 +230,7 @@ function printInvoice() {
         <div class="footer-left">
           <div v-if="invoice.cae" class="afip-qr-placeholder">
             <div class="qr-box">
-              <img :src="'https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=https://www.afip.gob.ar/fe/qr/?p=123456789'" alt="QR" style="width:80px;height:80px;"/>
+              <img :src="'https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=' + encodeURIComponent(getAfipQrUrl(invoice))" alt="QR" style="width:80px;height:80px;"/>
             </div>
             <div class="afip-logo-footer">
               <div class="arca-logo-text">ARCA</div>
@@ -248,6 +316,9 @@ function printInvoice() {
 .cae-row { font-size: 0.9rem; margin-bottom: 0.25rem; }
 .arca-logo-text { color: #005cbb; font-size: 1.8rem; font-weight: 900; letter-spacing: -1px; line-height: 1; }
 .mono { font-family: 'Courier New', monospace; font-weight: 700; }
+
+.p-split-row { font-size: 0.75rem; color: #444; margin-top: 2px; }
+.p-details { font-style: italic; color: #666; font-size: 0.7rem; }
 
 @media print {
   .invoice-sheet { border: none !important; padding: 0; width: 100% !important; max-width: none !important; }

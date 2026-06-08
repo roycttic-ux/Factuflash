@@ -20,7 +20,7 @@ async function load() {
   loading.value = true
   try {
     const res = await customersApi.list()
-    customers.value = res.data.customers
+    customers.value = res.data.recipients || res.data.customers || []
   } finally {
     loading.value = false
   }
@@ -120,43 +120,74 @@ function initials(name: string) {
       <button class="btn btn-primary btn-sm" @click="openCreate">Agregar primer cliente</button>
     </div>
 
-    <div v-else class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Cliente</th>
-            <th>CUIT</th>
-            <th>Email</th>
-            <th>Teléfono</th>
-            <th>Dirección</th>
-            <th>Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="c in filtered" :key="c.id">
-            <td>
-              <div class="customer-name-cell">
-                <div class="customer-avatar">{{ initials(c.name) }}</div>
-                <span class="font-semibold">{{ c.name }}</span>
-              </div>
-            </td>
-            <td class="mono text-sm">{{ c.cuit || '—' }}</td>
-            <td class="text-sm text-muted">{{ c.email || '—' }}</td>
-            <td class="text-sm text-muted">{{ c.phone || '—' }}</td>
-            <td class="text-sm text-muted truncate" style="max-width:180px;">{{ c.address || '—' }}</td>
-            <td>
-              <div class="flex gap-2">
-                <button class="btn btn-ghost btn-sm btn-icon" @click="openEdit(c)">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                </button>
-                <button class="btn btn-danger btn-sm btn-icon" @click="confirmDelete = c">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-                </button>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+    <div v-else>
+      <!-- Desktop Table -->
+      <div class="table-wrap desktop-only">
+        <table>
+          <thead>
+            <tr>
+              <th>Cliente</th>
+              <th>CUIT</th>
+              <th>Email</th>
+              <th>Teléfono</th>
+              <th>Dirección</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="c in filtered" :key="c.id">
+              <td>
+                <div class="customer-name-cell">
+                  <div class="customer-avatar">{{ initials(c.name) }}</div>
+                  <span class="font-semibold">{{ c.name }}</span>
+                </div>
+              </td>
+              <td class="mono text-sm">{{ c.cuit || '—' }}</td>
+              <td class="text-sm text-muted">{{ c.email || '—' }}</td>
+              <td class="text-sm text-muted">{{ c.phone || '—' }}</td>
+              <td class="text-sm text-muted truncate" style="max-width:180px;">{{ c.address || '—' }}</td>
+              <td>
+                <div class="flex gap-2">
+                  <button class="btn btn-ghost btn-sm btn-icon" @click="openEdit(c)">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  </button>
+                  <button class="btn btn-danger btn-sm btn-icon" @click="confirmDelete = c">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Mobile Cards -->
+      <div class="mobile-only flex flex-col gap-3">
+        <div v-for="c in filtered" :key="c.id" class="card customer-card-mobile" @click="openEdit(c)">
+          <div class="flex items-center gap-3 mb-3">
+            <div class="customer-avatar" style="width:42px; height:42px; font-size:0.9rem;">{{ initials(c.name) }}</div>
+            <div>
+              <div class="font-bold" style="font-size:1rem;">{{ c.name }}</div>
+              <div class="text-xs text-muted">{{ c.cuit || 'Sin CUIT' }}</div>
+            </div>
+          </div>
+          <div class="flex flex-col gap-1 text-sm text-muted">
+            <div v-if="c.email" class="flex items-center gap-2">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+              {{ c.email }}
+            </div>
+            <div v-if="c.phone" class="flex items-center gap-2">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l2.27-2.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+              {{ c.phone }}
+            </div>
+          </div>
+          <div class="flex justify-end mt-3 pt-3 border-t" style="border-color:var(--border);">
+            <button class="btn btn-danger btn-sm btn-icon" @click.stop="confirmDelete = c">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Create/Edit Modal -->

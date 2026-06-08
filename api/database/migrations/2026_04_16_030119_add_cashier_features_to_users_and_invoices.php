@@ -12,15 +12,20 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('users', function (Blueprint $table) {
-            $table->unsignedBigInteger('owner_id')->nullable();
-            $table->string('cash_register_name')->nullable(); // Ej: "Caja 1"
-            
-            $table->foreign('owner_id')->references('id')->on('users')->onDelete('cascade');
+            if (!Schema::hasColumn('users', 'owner_id')) {
+                $table->unsignedBigInteger('owner_id')->nullable();
+                $table->foreign('owner_id')->references('id')->on('users')->onDelete('cascade');
+            }
+            if (!Schema::hasColumn('users', 'cash_register_name')) {
+                $table->string('cash_register_name')->nullable(); // Ej: "Caja 1"
+            }
         });
 
         Schema::table('invoices', function (Blueprint $table) {
-            $table->unsignedBigInteger('cashier_id')->nullable();
-            $table->foreign('cashier_id')->references('id')->on('users')->nullOnDelete();
+            if (!Schema::hasColumn('invoices', 'cashier_id')) {
+                $table->unsignedBigInteger('cashier_id')->nullable();
+                $table->foreign('cashier_id')->references('id')->on('users')->nullOnDelete();
+            }
         });
     }
 

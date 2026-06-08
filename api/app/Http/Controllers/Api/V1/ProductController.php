@@ -28,14 +28,31 @@ class ProductController extends Controller
             'margin_percent' => 'nullable|numeric|min:0',
             'recommended_price' => 'nullable|numeric|min:0',
             'stock' => 'nullable|integer|min:0',
+            'unlimited_stock' => 'nullable|boolean',
             'min_stock_alert' => 'nullable|integer|min:0',
             'category' => 'nullable|string|max:50',
-            'image' => $request->hasFile('image') ? 'nullable|file|mimes:jpg,jpeg,png,webp,gif|max:5120' : 'nullable',
+            'tags' => 'nullable|string',
+            'variants' => 'nullable|string', // Se espera JSON string desde FormData
+            'image' => $request->hasFile('image') ? 'nullable|file|mimes:jpg,jpeg,png,webp,gif|max:2048' : 'nullable',
+            'extra_images' => 'nullable|array|max:5',
+            'extra_images.*' => 'file|mimes:jpg,jpeg,png,webp,gif|max:2048',
         ]);
 
         if ($request->hasFile('image')) {
             $path = $request->file('image')->store('products', 'public');
             $validated['image_url'] = $path;
+        }
+
+        if ($request->hasFile('extra_images')) {
+            $extraPaths = [];
+            foreach ($request->file('extra_images') as $file) {
+                $extraPaths[] = $file->store('products', 'public');
+            }
+            $validated['images'] = $extraPaths;
+        }
+
+        if ($request->has('variants')) {
+            $validated['variants'] = json_decode($request->variants, true);
         }
 
         $validated['user_id'] = $request->user()->system_owner_id;
@@ -76,19 +93,42 @@ class ProductController extends Controller
             'margin_percent' => 'nullable|numeric|min:0',
             'recommended_price' => 'nullable|numeric|min:0',
             'stock' => 'nullable|integer|min:0',
+            'unlimited_stock' => 'nullable|boolean',
             'min_stock_alert' => 'nullable|integer|min:0',
             'category' => 'nullable|string|max:50',
-            'image' => $request->hasFile('image') ? 'nullable|file|mimes:jpg,jpeg,png,webp,gif|max:5120' : 'nullable',
+            'tags' => 'nullable|string',
+            'variants' => 'nullable|string', // Se espera JSON string
+            'existing_images' => 'nullable|string', // JSON array de strings (paths existentes a mantener)
+            'image' => $request->hasFile('image') ? 'nullable|file|mimes:jpg,jpeg,png,webp,gif|max:2048' : 'nullable',
+            'extra_images' => 'nullable|array|max:5',
+            'extra_images.*' => 'file|mimes:jpg,jpeg,png,webp,gif|max:2048',
         ]);
 
-        \Log::info('Update Product ID: ' . $id);
-        \Log::info('Has File "image": ' . ($request->hasFile('image') ? 'YES' : 'NO'));
-        
         if ($request->hasFile('image')) {
-            \Log::info('File Size: ' . $request->file('image')->getSize());
             $path = $request->file('image')->store('products', 'public');
-            \Log::info('Stored Path: ' . $path);
             $validated['image_url'] = $path;
+        }
+
+        // Sincronización de imágenes extra
+        $extraPaths = [];
+        if ($request->has('existing_images')) {
+            $extraPaths = json_decode($request->existing_images, true) ?? [];
+        } else {
+            // Si no se envía existing_images, mantenemos las que estaban (retrocompatibilidad)
+            $extraPaths = $product->images ?? [];
+        }
+
+        if ($request->hasFile('extra_images')) {
+            foreach ($request->file('extra_images') as $file) {
+                if (count($extraPaths) < 10) { // Ampliamos un poco el límite si es necesario
+                    $extraPaths[] = $file->store('products', 'public');
+                }
+            }
+        }
+        $validated['images'] = $extraPaths;
+
+        if ($request->has('variants')) {
+            $validated['variants'] = json_decode($request->variants, true);
         }
 
         $product->update($validated);
@@ -118,5 +158,40 @@ class ProductController extends Controller
             ->get();
 
         return response()->json(['products' => $products]);
+    }
+
+    public function applyInflation(Request $request): JsonResponse
+    {
+        $request->validate([
+            'percentage' => 'required|numeric|min:0',
+            'category' => 'nullable|string'
+        ]);
+
+        $multiplier = 1 + ($request->percentage / 100);
+
+        $query = Product::where('user_id', $request->user()->system_owner_id);
+
+        if ($request->has('category') && $request->category !== '' && $request->category !== 'Todas') {
+            $query->where('tags', 'LIKE', '%' . $request->category . '%');
+        }
+
+        $query->update([
+            'cost_usd' => \DB::raw("ROUND(cost_usd * {$multiplier})")
+        ]);
+
+        return response()->json(['message' => 'Precios actualizados de acuerdo a la inflación']);
+    }
+
+    public function getTags(Request $request): JsonResponse
+    {
+        $ownerId = $request->user()->system_owner_id;
+        $tagsString = Product::where('user_id', $ownerId)
+            ->whereNotNull('tags')
+            ->pluck('tags')
+            ->implode(',');
+
+        $tagsArray = array_unique(array_filter(array_map('trim', explode(',', $tagsString))));
+        
+        return response()->json(['tags' => array_values($tagsArray)]);
     }
 }

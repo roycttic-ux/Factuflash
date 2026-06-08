@@ -1,9 +1,6 @@
 import axios from 'axios'
 
-const isProduction = import.meta.env.PROD
-const baseURL = isProduction 
-  ? '/api/v1/' 
-  : 'http://localhost/sistemafacturacion/api/public/api/v1/'
+const baseURL = '/api/v1/'
 
 const api = axios.create({
   baseURL,
@@ -21,10 +18,26 @@ api.interceptors.request.use((config) => {
 
 api.interceptors.response.use(
   (res) => res,
-  (err) => {
+  async (err) => {
     if (err.response?.status === 401) {
       localStorage.removeItem('token')
-      window.location.href = '#/login'
+      try {
+        const { useAuthStore } = await import('@/stores/auth')
+        const { default: router } = await import('@/router')
+        const auth = useAuthStore()
+        auth.token = null
+        auth.user = null
+        router.replace('/login')
+      } catch (e) {
+        window.location.replace('#/login')
+      }
+    } else if (err.response?.status === 402) {
+      try {
+        const { default: router } = await import('@/router')
+        router.replace('/suscripcion')
+      } catch (e) {
+        window.location.replace('#/suscripcion')
+      }
     }
     return Promise.reject(err)
   }

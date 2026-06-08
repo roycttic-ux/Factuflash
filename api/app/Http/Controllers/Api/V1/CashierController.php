@@ -13,8 +13,8 @@ class CashierController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        // Solo el dueño puede ver a sus cajeros
-        if ($request->user()->role !== 'owner') {
+        // Solo el dueño (o admin) puede ver a sus cajeros
+        if (!in_array($request->user()->role, ['owner', 'admin'])) {
             return response()->json(['error' => 'No autorizado'], 403);
         }
 
@@ -38,7 +38,7 @@ class CashierController extends Controller
 
     public function store(Request $request): JsonResponse
     {
-        if ($request->user()->role !== 'owner') {
+        if (!in_array($request->user()->role, ['owner', 'admin'])) {
             return response()->json(['error' => 'No autorizado'], 403);
         }
 
@@ -66,7 +66,7 @@ class CashierController extends Controller
 
     public function destroy(Request $request, int $id): JsonResponse
     {
-        if ($request->user()->role !== 'owner') {
+        if (!in_array($request->user()->role, ['owner', 'admin'])) {
             return response()->json(['error' => 'No autorizado'], 403);
         }
 

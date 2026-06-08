@@ -10,10 +10,13 @@ RUN apk add --no-cache \
     unzip \
     oniguruma-dev \
     mysql-client \
+    libxml2-dev \
+    openssl-dev \
+    ca-certificates \
     bash
 
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install pdo_mysql mbstring gd zip
+    && docker-php-ext-install pdo_mysql mbstring gd zip soap
 
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 

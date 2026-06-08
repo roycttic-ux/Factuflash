@@ -18,12 +18,19 @@ class Invoice extends Model
         'invoice_number',
         'cae',
         'cae_expiry',
+        'nc_cae',
+        'nc_number',
+        'cbte_tipo',
+        'pto_vta',
         'dollar_rate',
         'total_usd',
         'total_local',
         'status',
         'notify_afip',
         'payment_method',
+        'is_multiple_payment',
+        'pos_device_id',
+        'payment_transaction_id',
     ];
 
     protected function casts(): array
@@ -34,7 +41,18 @@ class Invoice extends Model
             'total_local' => 'decimal:2',
             'cae_expiry' => 'date',
             'notify_afip' => 'boolean',
+            'is_multiple_payment' => 'boolean',
         ];
+    }
+
+    public function posDevice(): BelongsTo
+    {
+        return $this->belongsTo(PosDevice::class);
+    }
+
+    public function payments(): HasMany
+    {
+        return $this->hasMany(InvoicePayment::class);
     }
 
     public function user(): BelongsTo

@@ -1,0 +1,28 @@
+# ── ETAPA 1: Compilar Frontend ──
+FROM node:20 AS build-stage
+WORKDIR /app
+COPY frontend/package*.json ./
+RUN npm install
+COPY frontend/ ./
+RUN npm run build
+
+# ── ETAPA 2: Servidor Nginx Final ──
+FROM nginx:stable-alpine
+
+# Copiar configuración de Nginx
+COPY docker/nginx/conf.d/default.conf /etc/nginx/conf.d/default.conf
+
+# Carpeta base para la web
+WORKDIR /var/www/html
+
+# Copiar la Landing (estática)
+COPY frontend/landing /var/www/html/landing
+
+# Copiar la App (compilada en ETAPA 1)
+COPY --from=build-stage /app/dist /var/www/html/app
+
+# Copiar los certificados SSL (si existen)
+# COPY docker/nginx/ssl /etc/nginx/ssl
+
+EXPOSE 80 443
+CMD ["nginx", "-g", "daemon off;"]

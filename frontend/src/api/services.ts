@@ -1,8 +1,8 @@
 import api from './client'
 
 export const authApi = {
-  login: (email: string, password: string) =>
-    api.post('/auth/login', { email, password }),
+  login: (email: string, password: string, captcha_token?: string) =>
+    api.post('/auth/login', { email, password, captcha_token }),
   logout: () => api.post('/auth/logout'),
   me: () => api.get('/auth/me'),
   register: (data: Record<string, string>) => api.post('/auth/register', data),
@@ -22,15 +22,22 @@ export const invoicesApi = {
 export const productsApi = {
   list: () => api.get('/products'),
   get: (id: number) => api.get(`/products/${id}`),
-  create: (data: object | FormData) => api.post('/products', data),
+  create: (data: object | FormData) => {
+    if (data instanceof FormData) {
+      return api.post('/products', data, { headers: { 'Content-Type': 'multipart/form-data' } })
+    }
+    return api.post('/products', data)
+  },
   update: (id: number, data: object | FormData) => {
     if (data instanceof FormData) {
-      return api.post(`/products/${id}`, data)
+      return api.post(`/products/${id}`, data, { headers: { 'Content-Type': 'multipart/form-data' } })
     }
     return api.put(`/products/${id}`, data)
   },
   delete: (id: number) => api.delete(`/products/${id}`),
   lowStock: () => api.get('/products/low-stock'),
+  getTags: () => api.get('/products/tags'),
+  applyInflation: (percentage: number, category: string = 'Todas') => api.post('/products/inflation', { percentage, category }),
 }
 
 export const customersApi = {
@@ -70,11 +77,25 @@ export const subscriptionApi = {
 
 export const mpApi = {
   createPreference: (data: object) => api.post('/mp/preference', data),
+  createPointIntent: (data: { device_id: string; amount: number; invoice_id: number }) => api.post('/mp/point-intent', data),
   createSubscription: (plan: string) => api.post('/mp/subscription-preference', { plan }),
+}
+
+export const posDevicesApi = {
+  list: () => api.get('/pos-devices'),
+  create: (data: object) => api.post('/pos-devices', data),
+  checkStatus: (externalId: string) => api.get(`/pos-devices/status/${externalId}`),
+  delete: (id: number) => api.delete(`/pos-devices/${id}`),
 }
 
 export const cashierApi = {
   list: () => api.get('/cashiers'),
   create: (data: object) => api.post('/cashiers', data),
   delete: (id: number) => api.delete(`/cashiers/${id}`),
+}
+
+export const adminApi = {
+  users: () => api.get('/admin/users'),
+  deleteUser: (id: number) => api.delete(`/admin/users/${id}`),
+  activateSubscription: (id: number, plan: 'monthly' | 'annual') => api.post(`/admin/users/${id}/activate-subscription`, { plan }),
 }

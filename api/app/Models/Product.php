@@ -19,9 +19,13 @@ class Product extends Model
         'margin_percent',
         'recommended_price',
         'stock',
+        'unlimited_stock',
         'min_stock_alert',
         'category',
+        'tags',
         'image_url',
+        'images',
+        'variants',
     ];
 
     protected function casts(): array
@@ -31,7 +35,10 @@ class Product extends Model
             'margin_percent' => 'decimal:2',
             'recommended_price' => 'decimal:2',
             'stock' => 'integer',
+            'unlimited_stock' => 'boolean',
             'min_stock_alert' => 'integer',
+            'images' => 'array',
+            'variants' => 'array',
         ];
     }
 

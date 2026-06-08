@@ -1,4 +1,4 @@
-version: '3.8'
+
 
 services:
   # Base de Datos
@@ -23,9 +23,8 @@ services:
       dockerfile: Dockerfile
     container_name: factuflash_api
     restart: always
+    env_file: .env
     volumes:
-      # Solo persistimos storage/ para logos, certs AFIP, etc.
-      # NO montamos todo ./api porque sobreescribiría el vendor/ del build
       - api_storage:/var/www/html/storage
     depends_on:
       - mysql
@@ -42,6 +41,9 @@ services:
     ports:
       - "80:80"
       - "443:443"
+    volumes:
+      - ./docker/nginx/conf.d:/etc/nginx/conf.d:ro
+      - api_storage:/var/www/html/storage:ro
     depends_on:
       - api
     networks:

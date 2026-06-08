@@ -6,31 +6,73 @@ Sistema profesional de facturación y control de stock con actualización autom�
 
 ```text
 /
-├── assets/         # Recursos estáticos (CSS, JS, Imágenes)
-├── config/         # Configuraciones de Base de Datos y APIs
-├── public/         # Punto de entrada (index.php) y archivos públicos
-├── src/            # Lógica de negocio (Controladores, Modelos, Servicios)
-├── sql/            # Scripts de creación de base de datos
-├── views/          # Plantillas de la interfaz de usuario
-└── uploads/        # Carpeta para logos y fotos de productos
+├── api/            # Backend (Laravel PHP)
+├── frontend/       # Frontend Web App (Vue.js + TypeScript)
+├── mobile/         # Mobile App (Android/Java)
+├── docker/         # Configuración para despliegue
 ```
 
 ## 🛠️ Requisitos
-- **PHP 8.1+**
+- **PHP 8.1+** y **Composer**
+- **Node.js 18+** y **npm**
 - **MySQL 8.0+**
-- **XAMPP / Laragon**
+- **Android Studio** (para la app móvil)
 
-## 🚀 Instalación Rápida
+## 📦 Librerías Principales Utilizadas
+- **Backend**: Laravel 10, Sanctum (Autenticación API), GuzzleHTTP (para Web Services de AFIP)
+- **Frontend**: Vue 3 (Composition API), Vite, TailwindCSS, Axios, Vue Router, Pinia
+- **Mobile**: Java, Android SDK, Gradle
 
-1.  **Base de Datos**: Importa el archivo `sql/schema.sql` en tu gestor de base de datos (phpMyAdmin).
-2.  **Configuración**: Edita el archivo `config/database.php` con tus credenciales locales.
-3.  **Servidor**: Asegúrate de que el documento root de tu servidor apunte a la carpeta `public/` o accede vía `localhost/Sistema facturacion/public`.
+## 🏗️ Arquitectura Técnica Resumida
+FactuFlash utiliza una arquitectura **Cliente-Servidor (SPA + API Rest + Mobile App)**:
+- **Capa de Presentación Web (Frontend)**: Desarrollada como una Single Page Application (SPA) con Vue.js, la cual se comunica exclusivamente a través de la API REST para obtener y enviar datos.
+- **Capa de Presentación Móvil (Mobile App)**: Desarrollada de forma nativa en Android con Java (Aún en desarrollo).
+- **Capa de Negocio y Datos (Backend)**: Desarrollada en Laravel (PHP). Expone endpoints protegidos por tokens (Sanctum). Se encarga de la lógica de negocio, integración con los Web Services de ARCA/AFIP (WSAA y WSFEv1) y la persistencia en una base de datos MySQL relacional.
 
-## ✨ Características Principales
-- **Plan Único**: Suscripción mensual sencilla sin límites.
-- **Dollar-Sync**: Precios de productos vinculados al dólar para protección inflacionaria.
-- **Web & Mobile**: Gestión en escritorio y Dashboards rápidos en App.
-- **Seguridad**: Autenticación vía Auth0 e integración con MercadoPago.
+## ⚙️ Variables de Entorno Necesarias
+Debes configurar las siguientes variables en tus archivos `.env`. Toma como referencia los archivos `.env.example`.
+
+**Backend (`api/.env`):**
+```env
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=factuflash
+DB_USERNAME=root
+DB_PASSWORD=CAMBIAR_EN_LOCAL
+AFIP_CUIT=tu_cuit_aqui
+```
+
+**Frontend (`frontend/.env`):**
+```env
+VITE_API_URL=http://localhost:8000/api
+```
+
+## 🚀 Cómo instalar dependencias y correr en local
+
+### 1. Backend (Laravel)
+Abre una terminal en la carpeta `api/`:
+```bash
+cd api
+composer install
+cp .env.example .env
+php artisan key:generate
+php artisan migrate --seed
+php artisan serve
+```
+Esto levantará el backend en `http://localhost:8000`.
+
+### 2. Frontend (Vue.js)
+Abre otra terminal en la carpeta `frontend/`:
+```bash
+cd frontend
+npm install
+npm run dev
+```
+Esto levantará el entorno de desarrollo de Vue (usualmente en `http://localhost:5173`).
+
+### 3. Base de Datos
+Asegúrate de tener un servidor MySQL local (XAMPP, Laragon, etc.) ejecutándose en el puerto 3306 antes de correr las migraciones del backend.
 
 ---
 **Desarrollado por Ulises Roig Bonavitta**  

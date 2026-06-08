@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { dashboardApi } from '@/api/services'
+import { dashboardApi, settingsApi } from '@/api/services'
 import { useAuthStore } from '@/stores/auth'
 
 const auth = useAuthStore()
@@ -12,18 +12,23 @@ const stats = ref({ monthly_total: 0, invoice_count: 0, product_count: 0, low_st
 const recentInvoices = ref<any[]>([])
 const topProducts = ref<any[]>([])
 const salesByCashier = ref<any[]>([])
+const fullSettings = ref<any>({})
 
 onMounted(async () => {
   try {
-    const res = await dashboardApi.stats()
-    stats.value = res.data.stats
-    recentInvoices.value = res.data.recent_invoices
-    topProducts.value = res.data.top_products
-    salesByCashier.value = res.data.sales_by_cashier
+    const [dRes, sRes] = await Promise.all([dashboardApi.stats(), settingsApi.get()])
+    stats.value = dRes.data.stats
+    recentInvoices.value = dRes.data.recent_invoices
+    topProducts.value = dRes.data.top_products
+    salesByCashier.value = dRes.data.sales_by_cashier
+    
+    fullSettings.value = sRes.data.settings
   } finally {
     loading.value = false
   }
 })
+
+
 
 const statCards = computed(() => [
   {
@@ -70,6 +75,12 @@ function statusBadge(s: string) {
 function statusLabel(s: string) {
   return s === 'paid' ? 'Pagada' : s === 'pending' ? 'Pendiente' : s
 }
+
+const getProgressWidth = (qty: number) => {
+  if (!topProducts.value.length) return 0
+  const max = topProducts.value[0].total_qty
+  return (qty / max) * 100
+}
 </script>
 
 <template>
@@ -87,7 +98,7 @@ function statusLabel(s: string) {
 
     <!-- BANNER DE ESTADO DE CUENTA -->
     <div 
-      v-if="auth.user && auth.user.role === 'owner'"
+      v-if="auth.user && auth.user.role === 'owner' && auth.user.plan_status !== 'active'"
       class="account-status-banner" 
       :class="[auth.user.plan_status === 'trial' ? 'status-trial' : 'status-paid']"
     >
@@ -98,7 +109,7 @@ function statusLabel(s: string) {
         </div>
         <div class="status-text">
           <p class="status-main">
-            {{ auth.user.plan_status === 'trial' ? 'Estás en el período de PRUEBA GRATUITA' : 'Tu suscripción está ACTIVA' }}
+            {{ auth.user.plan_status === 'trial' ? 'Estás en el período de PRUEBA GRATUITA' : 'Tu suscripción ha vencido' }}
           </p>
           <p class="status-sub">
             {{ auth.user.days_left > 0 
@@ -109,13 +120,14 @@ function statusLabel(s: string) {
         </div>
       </div>
       <button 
-        v-if="auth.user.plan_status === 'trial' || auth.user.days_left <= 0"
         class="btn btn-white btn-sm"
-        @click="router.push('/configuracion')"
+        @click="router.push('/suscripcion')"
       >
         Actualizar mi Plan ⭐
       </button>
     </div>
+
+
 
     <!-- Loading skeleton -->
     <template v-if="loading">
@@ -128,11 +140,14 @@ function statusLabel(s: string) {
       <!-- Stat cards -->
       <div class="grid-stats" style="margin-bottom:1.75rem;">
         <div
-          v-for="card in statCards"
+          v-for="(card, idx) in statCards"
           :key="card.label"
           class="stat-card"
           :style="{ '--stat-color': card.color }"
         >
+          <div class="absolute top-0 right-0 w-8 h-8 flex items-center justify-center text-xs font-mono text-zinc-500" style="background: var(--bg-elevated); border-left: 1px solid var(--border); border-bottom: 1px solid var(--border);">
+            0{{ idx + 1 }}
+          </div>
           <div class="stat-icon">
             <!-- dollar -->
             <svg v-if="card.icon==='dollar'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -192,8 +207,8 @@ function statusLabel(s: string) {
                 <tr v-for="inv in recentInvoices" :key="inv.id">
                   <td><span class="mono">{{ inv.invoice_number }}</span></td>
                   <td>{{ inv.recipient?.name ?? '—' }}</td>
-                  <td>{{ formatDate(inv.created_at) }}</td>
-                  <td class="font-semibold">{{ formatARS(inv.total_local) }}</td>
+                  <td><span class="mono">{{ formatDate(inv.created_at) }}</span></td>
+                  <td class="font-semibold mono">{{ formatARS(inv.total_local) }}</td>
                   <td><span class="badge" :class="statusBadge(inv.status)">{{ statusLabel(inv.status) }}</span></td>
                   <td>
                     <button class="btn btn-ghost btn-sm btn-icon" @click="router.push(`/facturas/${inv.id}`)">
@@ -212,12 +227,22 @@ function statusLabel(s: string) {
             <h2 class="section-title">Más Vendidos</h2>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--primary);"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
           </div>
-          <div class="top-list" style="margin-top:1.25rem;">
+          <div class="top-list">
              <div v-for="(tp, idx) in topProducts" :key="tp.product_id" class="top-item">
-                <div class="top-rank">{{ idx + 1 }}</div>
+                <div class="top-rank-box" :class="`rank-${idx + 1}`">
+                   <span v-if="idx === 0">🥇</span>
+                   <span v-else-if="idx === 1">🥈</span>
+                   <span v-else-if="idx === 2">🥉</span>
+                   <span v-else>{{ idx + 1 }}</span>
+                </div>
                 <div class="top-info">
-                   <div class="top-name">{{ tp.product?.name || 'Producto eliminado' }}</div>
-                   <div class="top-qty">{{ tp.total_qty }} unidades vendidas</div>
+                   <div class="top-name-row">
+                      <span class="top-name">{{ tp.product?.name || 'Producto eliminado' }}</span>
+                      <span class="top-qty-label">{{ tp.total_qty }} u.</span>
+                   </div>
+                   <div class="top-progress-track">
+                      <div class="top-progress-fill" :style="{ width: getProgressWidth(tp.total_qty) + '%' }"></div>
+                   </div>
                 </div>
              </div>
              <div v-if="topProducts.length === 0" class="empty-mini">
@@ -248,8 +273,8 @@ function statusLabel(s: string) {
                         <div class="font-bold">{{ sc.cashier ? sc.cashier.name : 'Ventas del Jefe (Dueño)' }}</div>
                      </td>
                      <td><span class="badge badge-primary">{{ sc.cashier ? sc.cashier.cash_register_name : 'Principal' }}</span></td>
-                     <td class="text-right font-medium">{{ sc.total_invoices }} comprobantes</td>
-                     <td class="text-right font-semibold color-primary">{{ formatARS(sc.total_sales) }}</td>
+                     <td class="text-right font-medium mono">{{ sc.total_invoices }} comprobantes</td>
+                     <td class="text-right font-semibold mono color-primary">{{ formatARS(sc.total_sales) }}</td>
                   </tr>
                </tbody>
             </table>
@@ -285,9 +310,56 @@ function statusLabel(s: string) {
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* TOP LIST PREMIUM */
+.top-list { display: flex; flex-direction: column; gap: 1rem; margin-top: 1.25rem; }
+.top-item { display: flex; align-items: center; gap: 1rem; }
+
+.top-rank-box {
+  width: 32px; height: 32px; border-radius: 0px; background: var(--bg-elevated);
+  display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.85rem;
+  flex-shrink: 0; border: 1px solid var(--border);
+}
+.rank-1 { background: rgba(245,158,11,0.15); border-color: rgba(245,158,11,0.3); color: #f59e0b; }
+.rank-2 { background: rgba(148,163,184,0.15); border-color: rgba(148,163,184,0.3); color: #94a3b8; }
+.rank-3 { background: rgba(180,83,9,0.15); border-color: rgba(180,83,9,0.3); color: #b45309; }
+
+.top-info { flex: 1; display: flex; flex-direction: column; gap: 0.4rem; min-width: 0; }
+.top-name-row { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
+.top-name { font-size: 0.88rem; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.top-qty-label { font-size: 0.75rem; font-weight: 700; color: var(--text-muted); opacity: 0.8; }
+
+.top-progress-track { width: 100%; height: 6px; background: var(--bg-elevated); border-radius: 0px; overflow: hidden; border: 1px solid var(--border); }
+.top-progress-fill { 
+  height: 100%; 
+  background: var(--primary); 
+  border-radius: 0px; 
+  transition: width 1s ease-out; 
+  position: relative;
+  overflow: hidden;
+}
+.top-progress-fill::after {
+  content: '';
+  position: absolute;
+  top: 0; left: -100%;
+  width: 100%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+  animation: shine-progress 2.5s infinite;
+}
+
+@keyframes shine-progress {
+  to { left: 100%; }
+}
+
+.empty-mini { text-align: center; padding: 2rem; color: var(--text-faint); font-style: italic; font-size: 0.85rem; }
+
+@media (max-width: 1024px) {
+  .dashboard-grid { grid-template-columns: 1fr !important; }
+}
+
 @media (max-width: 640px) {
   .account-status-banner { flex-direction: column; text-align: center; }
   .status-content { flex-direction: column; }
+  .page-header { flex-direction: column; align-items: stretch; text-align: center; }
+  .page-header .btn { width: 100%; }
 }
-
 </style>

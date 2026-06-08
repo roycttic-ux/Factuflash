@@ -1,32 +1,68 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute, RouterView, RouterLink } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import AppLogo from '@/components/AppLogo.vue'
 
 const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
-const sidebarOpen = ref(true)
+const sidebarOpen = ref(window.innerWidth > 768)
+const isMobile = ref(window.innerWidth <= 768)
+
+function handleResize() {
+  const wasMobile = isMobile.value
+  isMobile.value = window.innerWidth <= 768
+  if (wasMobile && !isMobile.value) {
+    sidebarOpen.value = true
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('resize', handleResize)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize)
+})
+
+function toggleSidebar() {
+  sidebarOpen.value = !sidebarOpen.value
+}
+
+function closeSidebarOnMobile() {
+  if (isMobile.value) {
+    sidebarOpen.value = false
+  }
+}
 
 const navItems = computed(() => {
   const items = [
-    { to: '/dashboard',   label: 'Dashboard',   icon: 'grid' },
-    { to: '/facturas',    label: 'Facturas',     icon: 'file-text' },
-    { to: '/productos',   label: 'Productos',    icon: 'package' },
-    { to: '/clientes',    label: 'Clientes',     icon: 'users' },
-    { to: '/cajas',       label: 'Empleados',    icon: 'briefcase', hideForCashier: true },
-    { label: 'Catálogo Público', icon: 'external-link', isExternal: true },
-    { to: '/suscripcion', label: 'Suscripción',  icon: 'credit-card', hideForCashier: true },
-    { to: '/configuracion', label: 'Configuración', icon: 'settings', hideForCashier: true },
+    { to: '/dashboard',     label: 'Dashboard',     icon: 'grid' },
+    { to: '/facturas',      label: 'Facturas',      icon: 'file-text' },
+    { to: '/productos',     label: 'Productos',     icon: 'package' },
+    { to: '/clientes',      label: 'Clientes',      icon: 'users' },
+    { to: '/cajas',         label: 'Empleados',     icon: 'briefcase', hideForCashier: true },
+    { to: '/suscripcion',   label: 'Suscripción',   icon: 'credit-card', hideForCashier: true },
+    { to: '/configuracion', label: 'Configuración', icon: 'settings', hideForCashier: true, exact: true },
+    { to: '/configuracion/catalogo', label: 'Catálogo Web', icon: 'monitor', hideForCashier: true },
+    { to: '/soporte',       label: 'Soporte',       icon: 'help-circle' },
+    { to: '/admin/usuarios', label: 'Panel Admin',  icon: 'shield', adminOnly: true },
   ]
-  if (auth.user?.role === 'cashier') {
-    return items.filter(i => !i.hideForCashier)
-  }
-  return items
+  
+  return items.filter(item => {
+    if (auth.user?.role === 'cashier' && item.hideForCashier) return false
+    if (item.adminOnly) {
+      const isOwnerEmail = auth.user?.email === 'admin@factuflash.com'
+      if (!isOwnerEmail) return false
+    }
+    return true
+  })
 })
 
-function isActive(path: string) {
-  return route.path.startsWith(path)
+function isActive(item: any) {
+  if (item.exact) return route.path === item.to
+  return route.path.startsWith(item.to)
 }
 
 async function logout() {
@@ -34,52 +70,55 @@ async function logout() {
   router.push('/login')
 }
 
-function openCatalog() {
-  const link = window.location.origin + window.location.pathname + '#/catalogo/' + (auth.user?.owner_id || auth.user?.id)
-  window.open(link, '_blank')
-}
+
 </script>
 
 <template>
-  <div class="app-shell" :class="{ collapsed: !sidebarOpen }">
+  <div class="app-shell" :class="{ collapsed: !sidebarOpen, 'is-mobile': isMobile }">
+    <!-- Mobile Top Bar -->
+    <header v-if="isMobile" class="mobile-header">
+      <button type="button" class="btn btn-icon btn-ghost" @click="toggleSidebar">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/>
+        </svg>
+      </button>
+      <div class="mobile-logo">
+        <AppLogo :width="130" />
+      </div>
+      <div class="user-avatar-sm">{{ auth.user?.name?.charAt(0).toUpperCase() }}</div>
+    </header>
+
+    <!-- Overlay for mobile -->
+    <div v-if="isMobile && sidebarOpen" class="sidebar-overlay" @click="sidebarOpen = false"></div>
+
     <!-- Sidebar -->
-    <aside class="sidebar">
+    <aside class="sidebar" :class="{ 'sidebar-visible': sidebarOpen }">
       <div class="sidebar-logo">
-        <div class="logo-mark">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-            <polyline points="14 2 14 8 20 8"/>
-            <line x1="16" y1="13" x2="8" y2="13"/>
-            <line x1="16" y1="17" x2="8" y2="17"/>
-            <polyline points="10 9 9 9 8 9"/>
-          </svg>
+        <div class="logo-area" @click="sidebarOpen = true" :style="{ cursor: !sidebarOpen ? 'pointer' : 'default' }">
+          <AppLogo :width="sidebarOpen ? 140 : 24" :collapsed="!sidebarOpen" style="color: white" />
         </div>
-        <span class="logo-text">FactuFlash</span>
-        <button class="sidebar-toggle btn btn-icon btn-ghost" @click="sidebarOpen = !sidebarOpen">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/>
+        <button type="button" v-if="!isMobile" class="sidebar-toggle btn btn-icon btn-ghost" @click="toggleSidebar" :title="sidebarOpen ? 'Colapsar menú' : 'Expandir menú'">
+          <svg v-if="sidebarOpen" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="15 18 9 12 15 6"/>
+          </svg>
+          <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="9 18 15 12 9 6"/>
+          </svg>
+        </button>
+        <button type="button" v-else class="sidebar-toggle btn btn-icon btn-ghost" @click="sidebarOpen = false">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
           </svg>
         </button>
       </div>
 
       <nav class="sidebar-nav">
         <template v-for="item in navItems" :key="item.label">
-          <a
-            v-if="item.isExternal"
-            href="javascript:void(0)"
-            class="nav-item"
-            @click="openCatalog"
-          >
-             <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
-             </svg>
-             <span class="nav-label">{{ item.label }}</span>
-          </a>
           <RouterLink
-            v-else
             :to="item.to!"
             class="nav-item"
-            :class="{ active: isActive(item.to!) }"
+            :class="{ active: isActive(item) }"
+            @click="closeSidebarOnMobile"
           >
             <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <template v-if="item.icon === 'grid'">
@@ -114,6 +153,15 @@ function openCatalog() {
                 <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
                 <line x1="1" y1="10" x2="23" y2="10"/>
               </template>
+              <template v-else-if="item.icon === 'shield'">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+              </template>
+              <template v-else-if="item.icon === 'help-circle'">
+                <circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+              </template>
+              <template v-else-if="item.icon === 'monitor'">
+                <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+              </template>
             </svg>
             <span class="nav-label">{{ item.label }}</span>
           </RouterLink>
@@ -125,10 +173,15 @@ function openCatalog() {
           <div class="user-avatar">{{ auth.user?.name?.charAt(0).toUpperCase() }}</div>
           <div class="user-info">
             <div class="user-name truncate">{{ auth.user?.name }}</div>
-            <div class="user-plan">{{ auth.user?.plan_status }}</div>
+            <div class="flex items-center gap-2">
+              <div class="user-plan">{{ auth.user?.plan_status }}</div>
+              <div v-if="auth.user?.plan_status === 'trial'" class="trial-days-badge">
+                {{ auth.user?.days_left }} {{ auth.user?.days_left === 1 ? 'día' : 'días' }}
+              </div>
+            </div>
           </div>
         </div>
-        <button class="btn btn-ghost btn-icon" @click="logout" title="Cerrar sesión">
+        <button type="button" class="btn btn-ghost btn-icon" @click="logout" title="Cerrar sesión">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
             <polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
@@ -179,18 +232,27 @@ function openCatalog() {
   gap: 0.75rem;
   padding: 1.25rem 1rem;
   border-bottom: 1px solid var(--border);
+  background: #13124b; /* Azul marino corporativo */
+  color: #fff;
 }
 .logo-mark {
   width: 38px; height: 38px;
-  background: linear-gradient(135deg, var(--primary), var(--accent));
-  border-radius: 10px;
+  background: var(--primary);
+  border-radius: 0px;
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
   color: #fff;
-  box-shadow: 0 4px 12px var(--primary-glow);
 }
-.logo-text { font-weight: 800; font-size: 1rem; flex: 1; background: linear-gradient(135deg, #fff, var(--accent)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-.sidebar-toggle { margin-left: auto; flex-shrink: 0; }
+.logo-text { font-weight: 800; font-size: 1rem; flex: 1; color: #fff; }
+.sidebar-logo .sidebar-toggle {
+  color: #9ca3af;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.sidebar-logo .sidebar-toggle:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+}
 
 /* NAV */
 .sidebar-nav { flex: 1; padding: 1rem 0.5rem; display: flex; flex-direction: column; gap: 2px; overflow-y: auto; }
@@ -204,11 +266,17 @@ function openCatalog() {
   font-size: 0.875rem;
   font-weight: 500;
   white-space: nowrap;
+  border: 1px solid transparent;
 }
-.nav-item:hover { background: var(--bg-elevated); color: var(--text-primary); }
+.nav-item:hover {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border-color: var(--border);
+}
 .nav-item.active {
-  background: rgba(99,102,241,0.15);
-  color: var(--primary);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
 }
 .nav-icon { flex-shrink: 0; }
 
@@ -221,14 +289,27 @@ function openCatalog() {
 .user-chip { flex: 1; display: flex; align-items: center; gap: 0.75rem; min-width: 0; }
 .user-avatar {
   width: 34px; height: 34px; flex-shrink: 0;
-  background: linear-gradient(135deg, var(--primary), var(--accent));
-  border-radius: 50%;
+  background: var(--primary);
+  border-radius: 0px;
   display: flex; align-items: center; justify-content: center;
   font-weight: 700; font-size: 0.85rem; color: #fff;
 }
 .user-info { min-width: 0; }
 .user-name { font-size: 0.82rem; font-weight: 600; }
 .user-plan { font-size: 0.7rem; color: var(--accent); text-transform: capitalize; }
+.trial-days-badge {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  white-space: nowrap;
+  border: 1px solid rgba(245, 158, 11, 0.2);
+}
+.flex { display: flex; }
+.items-center { align-items: center; }
+.gap-2 { gap: 0.5rem; }
 
 /* MAIN */
 .main-content {
@@ -241,9 +322,127 @@ function openCatalog() {
 }
 .app-shell.collapsed .main-content { margin-left: 64px; }
 
+/* MOBILE HEADER */
+.mobile-header {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 60px;
+  background: #13124b; /* Azul marino corporativo */
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  padding: 0 1rem;
+  z-index: 90;
+  gap: 1rem;
+  color: #fff;
+}
+.mobile-header .btn-ghost {
+  color: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+.mobile-header .btn-ghost:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+.mobile-header .btn-ghost svg {
+  width: 18px;
+  height: 18px;
+}
+.mobile-logo {
+  flex: 1;
+  font-weight: 800;
+  font-size: 1.1rem;
+  background: linear-gradient(135deg, #fff, var(--accent));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.user-avatar-sm {
+  width: 32px; height: 32px;
+  background: var(--primary);
+  border-radius: 0px;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 0.8rem; color: #fff;
+}
+
+.sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  backdrop-filter: blur(4px);
+  z-index: 95;
+  animation: fadeIn 0.2s ease;
+}
+
 @media (max-width: 768px) {
-  .sidebar { transform: translateX(-100%); width: 240px; }
-  .app-shell.collapsed .sidebar { transform: translateX(0); }
-  .main-content { margin-left: 0 !important; }
+  .sidebar {
+    transform: translateX(-100%);
+    width: 280px !important;
+    z-index: 101;
+    box-shadow: 20px 0 50px rgba(0,0,0,0.5);
+  }
+  .sidebar.sidebar-visible {
+    transform: translateX(0);
+  }
+  .main-content {
+    margin-left: 0 !important;
+    padding: 5rem 1rem 2rem;
+  }
+  .app-shell.collapsed .sidebar { transform: translateX(-100%); }
+  .app-shell.collapsed .main-content { margin-left: 0; }
+}
+
+/* Colapsado: Redimensionado de Logo y Footer a rectángulos pequeños y limpios */
+.app-shell.collapsed .sidebar-logo {
+  padding: 0.5rem;
+  height: 50px; /* Rectángulo súper bajo y estilizado */
+  gap: 0.25rem;
+  justify-content: center;
+}
+.app-shell.collapsed .sidebar-logo .logo-area {
+  width: 24px;
+}
+.app-shell.collapsed .sidebar-logo .sidebar-toggle {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 0;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.8);
+}
+.app-shell.collapsed .sidebar-logo .sidebar-toggle svg {
+  width: 12px;
+  height: 12px;
+}
+.app-shell.collapsed .sidebar-footer {
+  flex-direction: column;
+  padding: 0.75rem 0.25rem;
+  gap: 0.75rem;
+  justify-content: center;
+  align-items: center;
+}
+.app-shell.collapsed .sidebar-footer .user-chip {
+  justify-content: center;
+}
+.app-shell.collapsed .sidebar-footer .btn {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 </style>

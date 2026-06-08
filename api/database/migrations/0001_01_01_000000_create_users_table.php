@@ -23,7 +23,7 @@ return new class extends Migration
             $table->string('cert_path', 255)->nullable();
             $table->string('key_path', 255)->nullable();
             $table->integer('pos_number')->default(1);
-            $table->enum('role', ['admin', 'user'])->default('user');
+            $table->enum('role', ['admin', 'owner', 'cashier', 'user'])->default('user');
             $table->string('logo_path', 255)->nullable();
             $table->enum('plan_status', ['trial', 'active', 'expired', 'canceled'])->default('trial');
             $table->timestamp('trial_expires_at')->nullable();

@@ -13,10 +13,6 @@ Route::prefix('v1')->group(function () {
     // Auth (públicas)
     Route::post('/auth/register', [AuthController::class, 'register']);
     Route::post('/auth/login', [AuthController::class, 'login']);
-    Route::get('/diagnostics', [\App\Http\Controllers\Api\V1\DiagnosticController::class, 'index']);
-    Route::get('/diagnostics/fix', [\App\Http\Controllers\Api\V1\DiagnosticController::class, 'fix']);
-    Route::get('/diagnostics/migrate', [\App\Http\Controllers\Api\V1\DiagnosticController::class, 'migrate']);
-    Route::get('/diagnostics/test-register', [\App\Http\Controllers\Api\V1\DiagnosticController::class, 'testRegister']);
 
     // Catálogo Público
     Route::get('/public/catalog/{userId}', [\App\Http\Controllers\Api\V1\CatalogController::class, 'show']);
@@ -27,8 +23,9 @@ Route::prefix('v1')->group(function () {
         Route::post('/auth/logout', [AuthController::class, 'logout']);
         Route::get('/auth/me', [AuthController::class, 'me']);
 
-        // Products
+        Route::get('/products/tags', [ProductController::class, 'getTags']);
         Route::get('/products', [ProductController::class, 'index']);
+        Route::post('/products/inflation', [ProductController::class, 'applyInflation']);
         Route::post('/products', [ProductController::class, 'store']);
         Route::get('/products/low-stock', [ProductController::class, 'lowStock']);
         Route::get('/products/{id}', [ProductController::class, 'show']);
@@ -67,8 +64,19 @@ Route::prefix('v1')->group(function () {
         Route::post('/arca/cert', [ArcaController::class, 'uploadCert']);
         Route::post('/arca/reset', [ArcaController::class, 'reset']);
 
+        // POS Devices
+        Route::get('/pos-devices', [\App\Http\Controllers\Api\V1\PosController::class, 'index']);
+        Route::post('/pos-devices', [\App\Http\Controllers\Api\V1\PosController::class, 'store']);
+        Route::post('/pos-devices/confirm', [\App\Http\Controllers\Api\V1\PosController::class, 'confirmPayment']);
+        Route::get('/pos-devices/status/{externalId}', [\App\Http\Controllers\Api\V1\PosController::class, 'checkStatus']);
+        Route::delete('/pos-devices/{id}', [\App\Http\Controllers\Api\V1\PosController::class, 'destroy']);
+
+        // POS Bridge Webhook (llamado por factuflash_agent.exe con Bearer token)
+        Route::post('/pos/webhook', [\App\Http\Controllers\Api\V1\PosWebhookController::class, 'handle']);
+
         // Mercado Pago
         Route::post('/mp/preference', [\App\Http\Controllers\Api\V1\MercadoPagoController::class, 'createPreference']);
+        Route::post('/mp/point-intent', [\App\Http\Controllers\Api\V1\MercadoPagoController::class, 'createPointPaymentIntent']);
         Route::post('/mp/subscription-preference', [\App\Http\Controllers\Api\V1\MercadoPagoController::class, 'createSubscriptionPreference']);
 
         // Suscripciones
@@ -76,9 +84,26 @@ Route::prefix('v1')->group(function () {
         Route::post('/subscription/checkout', [\App\Http\Controllers\Api\V1\SubscriptionController::class, 'createCheckout']);
         Route::get('/subscription/status', [\App\Http\Controllers\Api\V1\SubscriptionController::class, 'status']);
         Route::post('/subscription/cancel', [\App\Http\Controllers\Api\V1\SubscriptionController::class, 'cancel']);
+
+        // Admin
+        Route::get('/admin/users', [\App\Http\Controllers\Api\V1\AdminController::class, 'users']);
+        Route::delete('/admin/users/{id}', [\App\Http\Controllers\Api\V1\AdminController::class, 'deleteUser']);
+        Route::post('/admin/users/{id}/activate-subscription', [\App\Http\Controllers\Api\V1\AdminController::class, 'activateSubscription']);
     });
 
     // Webhooks (Públicos)
     Route::post('/webhooks/mp', [\App\Http\Controllers\Api\V1\MercadoPagoController::class, 'webhook'])->name('mp.webhook');
     Route::post('/webhooks/subscription', [\App\Http\Controllers\Api\V1\SubscriptionController::class, 'webhook'])->name('subscription.webhook');
+
+    // Descarga del Agente POS Bridge
+    Route::get('/pos-devices/download-agent/{platform}', [\App\Http\Controllers\Api\V1\PosController::class, 'downloadAgent']);
+    Route::get('/download/pos-agent', function () {
+        $file = base_path('../factuflash_agent/factuflash_agent.py');
+        if (!file_exists($file)) {
+            return response()->json(['error' => 'Archivo no encontrado'], 404);
+        }
+        return response()->download($file, 'factuflash_agent.py', [
+            'Content-Type' => 'text/plain',
+        ]);
+    });
 });

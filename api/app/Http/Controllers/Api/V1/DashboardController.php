@@ -54,9 +54,9 @@ class DashboardController extends Controller
             ->limit(5);
         $topProducts = $topProductsQuery->get();
 
-        // Ventas por Caja (Solo Jefe)
+        // Ventas por Caja (Solo Jefe o Admin)
         $salesByCashier = [];
-        if ($userRole === 'owner') {
+        if (in_array($userRole, ['owner', 'admin'])) {
             $salesByCashier = Invoice::select('cashier_id', \DB::raw('SUM(total_local) as total_sales'), \DB::raw('COUNT(id) as total_invoices'))
                 ->where('user_id', $ownerId)
                 ->groupBy('cashier_id')

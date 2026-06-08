@@ -12,6 +12,7 @@ export interface User {
   role: string
   owner_id: number | null
   cash_register_name: string | null
+  api_token: string | null
 }
 
 export const useAuthStore = defineStore('auth', () => {
@@ -21,10 +22,10 @@ export const useAuthStore = defineStore('auth', () => {
 
   const isAuthenticated = computed(() => !!token.value)
 
-  async function login(email: string, password: string) {
+  async function login(email: string, password: string, captcha_token?: string) {
     loading.value = true
     try {
-      const res = await authApi.login(email, password)
+      const res = await authApi.login(email, password, captcha_token)
       token.value = res.data.token
       user.value = res.data.user
       localStorage.setItem('token', res.data.token)
