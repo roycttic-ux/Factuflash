@@ -40,7 +40,6 @@ DB_PORT=3306
 DB_DATABASE=factuflash
 DB_USERNAME=root
 DB_PASSWORD=CAMBIAR_EN_LOCAL
-AFIP_CUIT=tu_cuit_aqui
 ```
 
 **Frontend (`frontend/.env`):**
@@ -73,6 +72,9 @@ Esto levantará el entorno de desarrollo de Vue (usualmente en `http://localhost
 
 ### 3. Base de Datos
 Asegúrate de tener un servidor MySQL local (XAMPP, Laragon, etc.) ejecutándose en el puerto 3306 antes de correr las migraciones del backend.
+
+## 📝 Nota sobre los scripts de despliegue
+Es posible que encuentres datos del VPS (IP, usuario, etc.) hardcodeados en los scripts como `deploy_vps.ps1` o `deploy_remote.sh`. **Estos datos han sido dejados intencionalmente** para que los docentes puedan evaluar el flujo de despliegue automatizado utilizado en producción durante la evaluación del Parcial 2.
 
 ---
 **Desarrollado por Ulises Roig Bonavitta**  
