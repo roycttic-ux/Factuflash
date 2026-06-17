@@ -93,5 +93,47 @@ Es posible que encuentres datos del VPS (IP, usuario, etc.) hardcodeados en los 
 
 ---
 
+## Acceso al VPS y Despliegue (Deploy)
+
+### Acceso al VPS
+Para conectarte directamente al servidor VPS por SSH:
+
+```bash
+ssh ubuntu@TU_HOST_VPS
+```
+* Contraseña SSH: `linux2003uli2954326436`
+
+El directorio donde se encuentra el proyecto en el servidor es:
+`~/sistemafacturacion`
+
+---
+
+### Cómo realizar un Despliegue (Deploy)
+
+Puedes realizar el despliegue automático desde tu terminal local de Windows usando PowerShell.
+
+#### 1. Despliegue Incremental (Rápido)
+Empaqueta los cambios locales, los sube al VPS y recrea los contenedores. Se usa para la mayoría de los cambios cotidianos de código:
+
+```powershell
+.\deploy_vps.ps1
+```
+
+#### 2. Reconstrucción Completa (Lento)
+Fuerza a Docker a reconstruir las imágenes sin usar la caché (útil si modificaste algún `Dockerfile` o agregaste dependencias del sistema):
+
+```powershell
+.\deploy_vps.ps1 --no-cache
+```
+
+#### Monitoreo del Deploy
+El script de PowerShell monitorea el progreso en tiempo real. Si por alguna razón la conexión SSH se corta, el deploy no se cancela, ya que corre en background (`nohup`) en el VPS. Puedes revisar los logs del último deploy en el servidor con:
+
+```bash
+ssh ubuntu@TU_HOST_VPS "tail -f /tmp/deploy.log"
+```
+
+---
+
 **Desarrollado por Ulises Roig Bonavitta**
 Analista de Sistemas - Escuela Da Vinci

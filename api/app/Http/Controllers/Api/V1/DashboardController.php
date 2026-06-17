@@ -20,12 +20,15 @@ class DashboardController extends Controller
         $monthStart = now()->startOfMonth();
 
         // Total del mes en ARS
-        $monthlyTotalQuery = Invoice::where('user_id', $ownerId)->where('created_at', '>=', $monthStart);
+        $monthlyTotalQuery = Invoice::where('user_id', $ownerId)
+            ->where('status', '!=', 'annulled')
+            ->where('created_at', '>=', $monthStart);
         if ($userRole === 'cashier') $monthlyTotalQuery->where('cashier_id', $userId);
         $monthlyTotal = $monthlyTotalQuery->sum('total_local');
 
         // Cantidades
-        $invoiceCountQuery = Invoice::where('user_id', $ownerId);
+        $invoiceCountQuery = Invoice::where('user_id', $ownerId)
+            ->where('status', '!=', 'annulled');
         if ($userRole === 'cashier') $invoiceCountQuery->where('cashier_id', $userId);
         $invoiceCount = $invoiceCountQuery->count();
 
@@ -45,7 +48,7 @@ class DashboardController extends Controller
         // Productos más vendidos
         $topProductsQuery = \App\Models\InvoiceItem::select('product_id', \DB::raw('SUM(quantity) as total_qty'))
             ->whereHas('invoice', function($q) use ($ownerId, $userRole, $userId) {
-                $q->where('user_id', $ownerId);
+                $q->where('user_id', $ownerId)->where('status', '!=', 'annulled');
                 if ($userRole === 'cashier') $q->where('cashier_id', $userId);
             })
             ->with('product:id,name')
@@ -59,6 +62,7 @@ class DashboardController extends Controller
         if (in_array($userRole, ['owner', 'admin'])) {
             $salesByCashier = Invoice::select('cashier_id', \DB::raw('SUM(total_local) as total_sales'), \DB::raw('COUNT(id) as total_invoices'))
                 ->where('user_id', $ownerId)
+                ->where('status', '!=', 'annulled')
                 ->groupBy('cashier_id')
                 ->with('cashier:id,name,cash_register_name')
                 ->get();

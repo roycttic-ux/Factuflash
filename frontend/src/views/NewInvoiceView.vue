@@ -22,9 +22,10 @@ let pollingInterval: any = null
 const settings = ref<any>({})
 const transferDetails = ref('')
 
+const arcaConnected = ref(false)
+
 const form = ref({
   recipient_id: '',
-  notify_afip: false,
   payment_method: 'cash',
   is_multiple_payment: false,
   payments: [{ payment_method: 'cash', amount: 0, details: '' }],
@@ -56,10 +57,7 @@ onMounted(async () => {
   products.value = prodRes.data.products
   posDevices.value = posRes.data.devices
   settings.value = settingsRes.data.settings || {}
-  
-  if (settings.value.arca_connected) {
-    form.value.notify_afip = true
-  }
+  arcaConnected.value = !!settings.value.arca_connected
 
   if (window.innerWidth > 768) {
     setTimeout(() => scannerInputRef.value?.focus(), 500)
@@ -236,8 +234,7 @@ function startPolling(externalId: string) {
       if (res.data.status === 'approved') {
         posStatus.value = '✅ ¡Pago aprobado! Emitiendo factura...'
         stopPolling()
-        // Auto-submit con ARCA activado — sin confirmación manual
-        form.value.notify_afip = true
+        // Auto-submit con ARCA activado
         await submit()
       }
     } catch (e) {
@@ -259,13 +256,14 @@ onUnmounted(() => stopPolling())
 
 async function submit() {
   error.value = ''
+  if (!arcaConnected.value) { error.value = 'Debés vincular tu cuenta con ARCA antes de emitir facturas. Andá a Configuración → AFIP / ARCA.'; return }
   if (form.value.items.some(i => !i.product_id)) { error.value = 'Completá todos los productos'; return }
 
   loading.value = true
   try {
     const payload = {
       recipient_id: form.value.recipient_id ? Number(form.value.recipient_id) : null,
-      notify_afip: form.value.notify_afip,
+      notify_afip: true,
       payment_method: form.value.is_multiple_payment ? form.value.payments[0].payment_method : form.value.payment_method,
       items: form.value.items.map(i => ({ 
         product_id: Number(i.product_id), 
@@ -579,11 +577,16 @@ function copyToClipboard(text: string, label: string) {
             </span>
           </div>
 
-          <div style="margin-top:1.5rem;" class="form-group">
-            <label class="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" v-model="form.notify_afip" class="form-checkbox" />
-              Notificar factura a AFIP (ARCA)
-            </label>
+          <div v-if="arcaConnected" class="arca-status-ok">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+            ARCA vinculado — Se notificará automáticamente
+          </div>
+          <div v-else class="arca-status-warn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <div>
+              <strong>ARCA no vinculado</strong>
+              <p style="margin:0.25rem 0 0;font-size:0.75rem;opacity:0.85;">No podés emitir facturas hasta vincular tu cuenta con ARCA. Andá a <router-link to="/configuracion" style="color:inherit;text-decoration:underline;font-weight:700;">Configuración → AFIP / ARCA</router-link>.</p>
+            </div>
           </div>
 
           <Transition name="fade">
@@ -593,7 +596,7 @@ function copyToClipboard(text: string, label: string) {
             </div>
           </Transition>
 
-          <button type="submit" class="btn btn-primary w-full" :disabled="loading" style="justify-content:center;margin-top:1rem;">
+          <button type="submit" class="btn btn-primary w-full" :disabled="loading || !arcaConnected" style="justify-content:center;margin-top:1rem;">
             <span v-if="loading" class="spinner"></span>
             <span v-else>Emitir Factura</span>
           </button>
@@ -875,5 +878,37 @@ function copyToClipboard(text: string, label: string) {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+}
+
+/* ARCA Status */
+.arca-status-ok {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+  padding: 0.65rem 0.9rem;
+  background: rgba(52, 211, 153, 0.08);
+  border: 1px solid rgba(52, 211, 153, 0.2);
+  border-radius: var(--radius-sm);
+  color: var(--success);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+.arca-status-warn {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  margin-top: 1.25rem;
+  padding: 0.75rem 0.9rem;
+  background: rgba(251, 191, 36, 0.08);
+  border: 1px solid rgba(251, 191, 36, 0.25);
+  border-radius: var(--radius-sm);
+  color: #fbbf24;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+.arca-status-warn svg {
+  flex-shrink: 0;
+  margin-top: 1px;
 }
 </style>

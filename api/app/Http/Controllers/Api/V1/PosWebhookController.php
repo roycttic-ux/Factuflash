@@ -53,9 +53,12 @@ class PosWebhookController extends Controller
                 $cbteTipo   = null;
                 $nextNumRaw = Invoice::where('user_id', $ownerId)->count() + 1;
 
-                // --- LOGICA ARCA (si está configurado y se pidió notificar) ---
-                if ($notifyAfip && $settings && $settings->arca_cert_path && $settings->arca_key_path) {
-                    try {
+                // --- LOGICA ARCA ---
+                if (!$settings || !$settings->arca_cert_path || !$settings->arca_key_path) {
+                    throw new \Exception("Debés vincular tu cuenta con AFIP/ARCA antes de emitir facturas con POS.");
+                }
+
+                try {
                         // Sin recipient → Consumidor Final
                         $cbteTipo = 11; // Factura C (Monotributo por defecto)
                         if ($settings->tax_condition === 'Responsable Inscripto') {
@@ -129,7 +132,7 @@ class PosWebhookController extends Controller
                     'total_usd'          => $amount,
                     'total_local'        => $amount,
                     'status'             => 'paid',
-                    'notify_afip'        => $notifyAfip && (bool) $cae,
+                    'notify_afip'        => true,
                     'payment_method'     => 'card',
                     'is_multiple_payment'=> false,
                     'cae'                => $cae,

@@ -106,8 +106,11 @@ class InvoiceController extends Controller
                 $nextNumRaw = Invoice::where('user_id', $ownerId)->count() + 1;
 
                 // --- LOGICA AFIP ---
-                if (!empty($validated['notify_afip']) && $settings && $settings->arca_cert_path && $settings->arca_key_path) {
-                    try {
+                if (!$settings || !$settings->arca_cert_path || !$settings->arca_key_path) {
+                    throw new \Exception("Debés vincular tu cuenta con AFIP/ARCA antes de emitir facturas.");
+                }
+
+                try {
                         $recipient = !empty($validated['recipient_id']) ? \App\Models\Recipient::find($validated['recipient_id']) : null;
                         
                         // Determinar tipo de comprobante
@@ -181,7 +184,7 @@ class InvoiceController extends Controller
                     'total_usd' => $totalUsd,
                     'total_local' => $totalLocal,
                     'status' => 'paid',
-                    'notify_afip' => $validated['notify_afip'] ?? false,
+                    'notify_afip' => true,
                     'payment_method' => $validated['payment_method'] ?? ($validated['payments'][0]['payment_method'] ?? 'cash'),
                     'is_multiple_payment' => !empty($validated['payments']),
                     'cae' => $cae,
