@@ -46,7 +46,7 @@ class SubscriptionTest extends TestCase
     public function it_calculates_days_left_correctly()
     {
         $user = User::factory()->create([
-            'trial_expires_at' => now()->addDays(10)->endOfDay()
+            'trial_expires_at' => now()->addDays(10)
         ]);
 
         $this->assertEquals(10, $user->days_left);

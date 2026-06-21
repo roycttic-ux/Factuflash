@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use App\Models\Product;
+use App\Services\AfipService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -11,10 +12,39 @@ class InvoiceStockTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // Use a closure binding so that makeWith() also returns our mock
+        $mock = \Mockery::mock(AfipService::class);
+        $mock->shouldReceive('createInvoice')->andReturn([
+            'cae' => '12345678901234',
+            'vencimiento' => '20261231',
+            'numero' => 5
+        ]);
+
+        $this->app->bind(AfipService::class, function () use ($mock) {
+            return $mock;
+        });
+    }
+
+    private function configureAfip($user)
+    {
+        \App\Models\UserSetting::create([
+            'user_id' => $user->id,
+            'arca_cuit' => '20451097025',
+            'arca_cert_path' => 'certs/users/1/certificado.crt',
+            'arca_key_path' => 'certs/users/1/privada.key',
+            'tax_condition' => 'Monotributista'
+        ]);
+    }
+
     /** @test */
     public function it_deducts_stock_correctly_for_simple_products()
     {
         $user = User::factory()->create();
+        $this->configureAfip($user);
         $product = Product::factory()->create([
             'user_id' => $user->id,
             'stock' => 10,
@@ -30,7 +60,6 @@ class InvoiceStockTest extends TestCase
         ];
 
         $response = $this->actingAs($user)->postJson('/api/v1/invoices', $payload);
-
         $response->assertStatus(201);
         $this->assertEquals(7, $product->refresh()->stock);
     }
@@ -39,6 +68,7 @@ class InvoiceStockTest extends TestCase
     public function it_deducts_stock_correctly_for_variants()
     {
         $user = User::factory()->create();
+        $this->configureAfip($user);
         $product = Product::factory()->create([
             'user_id' => $user->id,
             'variants' => [
@@ -73,6 +103,7 @@ class InvoiceStockTest extends TestCase
     public function it_does_not_deduct_stock_for_unlimited_items()
     {
         $user = User::factory()->create();
+        $this->configureAfip($user);
         $product = Product::factory()->create([
             'user_id' => $user->id,
             'stock' => 10,

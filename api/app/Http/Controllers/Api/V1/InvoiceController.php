@@ -159,7 +159,6 @@ class InvoiceController extends Controller
                     } catch (\Exception $e) {
                          throw new \Exception("Error AFIP: " . $e->getMessage());
                     }
-                }
 
                 // Generar número único corporativo: Prefijo - PtoVta - NumeroCeroRelleno
                 $prefix = $settings->invoice_prefix ?? 'C';

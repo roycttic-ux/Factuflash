@@ -96,7 +96,6 @@ class PosWebhookController extends Controller
                         Log::warning('Error al notificar ARCA desde webhook POS: ' . $e->getMessage());
                         // No bloqueamos la factura si ARCA falla — se crea igual localmente
                     }
-                }
 
                 // Obtener o crear un producto genérico "Venta Gral / POS"
                 $product = Product::where('user_id', $ownerId)->where('name', 'Venta Gral / POS')->first();

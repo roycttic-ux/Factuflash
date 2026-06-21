@@ -20,9 +20,22 @@ class AfipInvoiceTest extends TestCase
     {
         parent::setUp();
         
-        // Creamos la configuración de AFIP básica para los tests
-        // Nota: En un entorno de test real, esto no conectará a AFIP 
-        // porque vamos a mockear el servicio.
+        // Use a closure binding so that makeWith() also returns our mock
+        $mock = \Mockery::mock(AfipService::class);
+        $mock->shouldReceive('createInvoice')->andReturn([
+            'cae' => '12345678901234',
+            'vencimiento' => '20261231',
+            'numero' => 5
+        ]);
+        $mock->shouldReceive('createCreditNote')->andReturn([
+            'cae' => '98765432109876',
+            'vencimiento' => '20261231',
+            'numero' => 6
+        ]);
+
+        $this->app->bind(AfipService::class, function () use ($mock) {
+            return $mock;
+        });
     }
 
     /**
