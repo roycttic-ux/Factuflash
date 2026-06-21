@@ -5,7 +5,7 @@ Sistema profesional de facturación y control de stock con actualización autom�
 > [!IMPORTANT]  
 > **Aviso de separación de repositorios:** El frontend y el backend de este proyecto han sido separados para mejorar la escalabilidad y facilitar los despliegues. Para correr el proyecto completo de manera local, debes clonar y configurar tanto el backend como el frontend por separado, tal como se explica a continuación.
 
-## 📂 Repositorios del Proyecto
+## Repositorios del Proyecto
 
 - **Backend (API):** Laravel 10 (PHP) + MySQL
 - **Frontend (Web App):** Vue 3 + Vite + TailwindCSS
@@ -13,7 +13,7 @@ Sistema profesional de facturación y control de stock con actualización autom�
 
 ---
 
-## 🛠️ Cómo instalar y correr en local
+## Cómo instalar y correr en local
 
 > [!WARNING]
 > **Importante sobre XAMPP/Apache:** No intentes acceder al sistema entrando a `http://localhost/sistemafacturacion/` en tu navegador. Esto solo mostrará las carpetas del proyecto. Debes levantar un servidor local para la API y otro para el Frontend usando las consolas, y acceder a las URLs que estas te proporcionan (ver pasos a continuación).
@@ -80,9 +80,16 @@ El frontend requiere Node.js 18+ y npm.
 
 ---
 
-## 👨‍🏫 Accesos para el Profesor (Evaluación)
+## Accesos para el Profesor (Evaluación)
 
 Para revisar el proyecto de forma rápida, puedes importar el archivo `base_de_datos.sql` incluido en la raíz de este proyecto directamente en tu phpMyAdmin. Esta base de datos ya incluye datos de prueba y la estructura completa.
+
+**Pasos para importar la base de datos:**
+1. Abre tu panel de control de XAMPP e inicia los módulos **Apache** y **MySQL**.
+2. Ingresa en tu navegador a `http://localhost/phpmyadmin`.
+3. Haz clic en "Nueva" en el menú lateral izquierdo para crear una base de datos y llámala `fy_facturacion`.
+4. Selecciona la base de datos recién creada y ve a la pestaña **Importar** en el menú superior.
+5. Haz clic en "Seleccionar archivo", elige el archivo `base_de_datos.sql` que se encuentra en la raíz del proyecto y dale al botón "Importar" al final de la página.
 
 Una vez levantado el frontend y el backend (siguiendo los pasos anteriores), puedes ingresar al sistema con el siguiente usuario Administrador que tiene acceso completo a todas las funciones:
 
@@ -92,7 +99,7 @@ Una vez levantado el frontend y el backend (siguiendo los pasos anteriores), pue
 
 ---
 
-## 🌐 Despliegue a Producción
+## Despliegue a Producción
 
 El proyecto utiliza Docker para los despliegues en producción sobre un servidor VPS. 
 
