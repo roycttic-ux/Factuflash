@@ -31,6 +31,7 @@ class UserFactory extends Factory
             'password' => static::$password ??= Hash::make('password'),
             'remember_token' => Str::random(10),
             'plan_status' => 'active',
+            'paid_until' => now()->addMonth(),
             'api_token' => Str::random(60),
         ];
     }

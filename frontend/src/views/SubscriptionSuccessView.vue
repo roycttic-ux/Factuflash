@@ -1,49 +1,49 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { subscriptionApi } from '@/api/services'
-
+import { useAuthStore } from '@/stores/auth'
 const router = useRouter()
-const plan = new URLSearchParams(window.location.search).get('plan')
-const planLabel = plan === 'annual' ? 'Plan Anual' : 'Plan Mensual'
-const planPrice = plan === 'annual' ? '$310.000' : '$35.000'
-
-onMounted(async () => {
-  // Verify the subscription status on server
+const auth = useAuthStore()
+const status = ref<any>(null)
+const checking = ref(false)
+const error = ref('')
+let timer: ReturnType<typeof setTimeout> | undefined
+let attempts = 0
+let disposed = false
+const confirmed = computed(() => status.value?.has_subscription === true && status.value?.status === 'active' && !status.value?.verification_pending)
+async function verify() {
+  clearTimeout(timer)
+  checking.value = true
+  error.value = ''
   try {
-    await subscriptionApi.status()
+    const response = await subscriptionApi.status()
+    status.value = response.data
+    if (confirmed.value) await auth.fetchMe()
+    else if (++attempts < 12 && !disposed) timer = setTimeout(verify, 5000)
   } catch {
-    // Silently ignore - the user already has the MP confirmation
-  }
-})
+    error.value = 'No pudimos consultar el pago. Podés volver a verificarlo.'
+  } finally { checking.value = false }
+}
+onMounted(verify)
+onUnmounted(() => { disposed = true; clearTimeout(timer) })
 </script>
 
 <template>
-  <div class="success-page">
-    <div class="success-card">
-      <div class="success-icon">ðŸŽ‰</div>
-      <h1>Â¡Pago confirmado!</h1>
-      <p class="success-sub">
-        Tu suscripción a <strong>FactuFlash {{ planLabel }}</strong> está activa.
-        Ya tenés acceso completo al sistema.
-      </p>
-
-      <div class="plan-summary">
-        <div class="plan-row">
-          <span>Plan contratado</span>
-          <strong>{{ planLabel }}</strong>
-        </div>
-        <div class="plan-row">
-          <span>Monto abonado</span>
-          <strong>{{ planPrice }}</strong>
-        </div>
-      </div>
-
-      <button class="btn-dashboard" @click="router.push('/dashboard')">
-        Ir al Dashboard â†’
-      </button>
+  <div class="success-page"><div class="success-card">
+    <div class="success-icon">{{ confirmed ? '✓' : '…' }}</div>
+    <h1>{{ confirmed ? '¡Pago confirmado!' : 'Verificando tu pago' }}</h1>
+    <p class="success-sub">{{ confirmed ? 'Tu suscripción está activa. Ya tenés acceso al sistema durante el período abonado.' : 'Esperamos la confirmación de Mercado Pago. El acceso se activa cuando el pago está aprobado.' }}</p>
+    <div v-if="confirmed" class="plan-summary">
+      <div class="plan-row"><span>Plan contratado</span><strong>{{ status.plan === 'annual' ? 'Anual' : 'Mensual' }}</strong></div>
+      <div class="plan-row"><span>Importe del plan</span><strong>{{ Number(status.amount).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' }) }}</strong></div>
+      <div class="plan-row"><span>Acceso hasta</span><strong>{{ new Date(status.current_period_end).toLocaleDateString('es-AR') }}</strong></div>
     </div>
-  </div>
+    <p v-if="error" role="alert">{{ error }}</p>
+    <button v-if="confirmed" class="btn-dashboard" @click="router.push('/dashboard')">Ir al panel →</button>
+    <button v-else class="btn-dashboard" :disabled="checking" @click="verify">{{ checking ? 'Consultando…' : 'Verificar nuevamente' }}</button>
+    <RouterLink to="/suscripcion" style="display:block;margin-top:1rem">Volver a Suscripción</RouterLink>
+  </div></div>
 </template>
 
 <style scoped>

@@ -19,10 +19,17 @@ class AuthController extends Controller
             'email' => 'required|email|unique:users,email',
             'password' => 'required|string|min:6',
             'company_name' => 'nullable|string|max:150',
-            'plan_status' => 'nullable|string',
+            'expected_monthly_invoices' => 'nullable|integer|min:0|max:100000000',
+            'simultaneous_registers' => 'nullable|integer|min:1|max:100000',
             'captcha_token' => 'required|string',
         ]);
 
+        if (($validated['expected_monthly_invoices'] ?? 0) > 1000 || ($validated['simultaneous_registers'] ?? 1) > 3) {
+            return response()->json([
+                'message' => 'Para más de 1.000 facturas por mes o más de 3 cajas simultáneas, contactanos para una solución personalizada.',
+                'contact_url' => 'https://wa.me/5492954326436',
+            ], 422);
+        }
         if (!$this->verifyTurnstile($validated['captcha_token'])) {
              throw ValidationException::withMessages([
                 'captcha' => ['La validación de seguridad (Captcha) ha fallado. Inténtelo de nuevo.'],
@@ -35,8 +42,10 @@ class AuthController extends Controller
             'password' => Hash::make($validated['password']),
             'role' => 'owner', // Asignar el rol de dueño por defecto
             'company_name' => $validated['company_name'] ?? null,
-            'plan_status' => $request->input('plan_status', 'trial'),
-            'trial_expires_at' => now()->addDays(15),
+            'expected_monthly_invoices' => $validated['expected_monthly_invoices'] ?? null,
+            'simultaneous_registers' => $validated['simultaneous_registers'] ?? null,
+            'plan_status' => 'trial',
+            'trial_expires_at' => now()->addDays(\App\Services\SubscriptionPlans::TRIAL_DAYS),
             'api_token' => \Illuminate\Support\Str::random(60),
         ]);
 
@@ -58,10 +67,10 @@ class AuthController extends Controller
         $validated = $request->validate([
             'email' => 'required|email',
             'password' => 'required|string',
-            'captcha_token' => 'nullable|string',
+            'captcha_token' => 'required|string|max:2048',
         ]);
 
-        if ($request->has('captcha_token') && !$this->verifyTurnstile($request->input('captcha_token'))) {
+        if (!$this->verifyTurnstile($validated['captcha_token'])) {
              throw ValidationException::withMessages([
                 'captcha' => ['La validación de seguridad ha fallado.'],
              ]);
@@ -104,12 +113,12 @@ class AuthController extends Controller
 
     private function verifyTurnstile(?string $token): bool
     {
-        if (empty($token)) return true; // Si no hay token, dejamos pasar (ej: login sin captcha aún)
+        if (empty($token)) return false;
 
         try {
-            $secret = env('TURNSTILE_SECRET_KEY');
+            $secret = config('services.turnstile.secret');
             
-            if (empty($secret)) return true;
+            if (empty($secret)) return false;
 
             $response = Http::timeout(5)->asForm()->post('https://challenges.cloudflare.com/turnstile/v0/siteverify', [
                 'secret' => $secret,
@@ -117,10 +126,10 @@ class AuthController extends Controller
                 'remoteip' => request()->ip(),
             ]);
 
-            return true; // Temporalmente permisivo para permitir el acceso
+            return $response->successful() && $response->json('success') === true;
         } catch (\Exception $e) {
-            \Log::error('Turnstile verification error: ' . $e->getMessage());
-            return true; // Fallback: allow request on network error
+            \Log::warning('Turnstile verification unavailable.');
+            return false;
         }
     }
 }

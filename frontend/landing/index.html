@@ -1,608 +1,71 @@
-<!DOCTYPE html>
-<!-- FactuFlash Landing v2.1 - Mobile Optimized + Purple Theme -->
-<html lang="es" class="scroll-smooth dark">
-
+<!doctype html>
+<html lang="es-AR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FactuFlash - La forma más fácil de facturar y vender</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap"
-        rel="stylesheet">
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    colors: {
-                        navy: '#13124b',
-                        cyan: '#1fede8',
-                        purple: '#a952e7',
-                    },
-                    fontFamily: {
-                        poppins: ['Poppins', 'sans-serif'],
-                    }
-                }
-            }
-        }
-    </script>
-    <style>
-        body {
-            font-family: 'Poppins', sans-serif;
-            position: relative;
-            @apply bg-slate-50 text-slate-900 dark:bg-navy dark:text-white transition-colors duration-300;
-        }
-
-        body::before {
-            content: "";
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-image: radial-gradient(circle at 2px 2px, rgba(169, 82, 231, 0.05) 1px, transparent 0);
-            background-size: 40px 40px;
-            pointer-events: none;
-            z-index: -20;
-        }
-
-        .glass {
-            @apply backdrop-blur-xl border-b;
-            border-color: rgba(255, 255, 255, 0.1);
-        }
-
-        .dark .glass {
-            background: rgba(19, 18, 75, 0.98);
-            backdrop-filter: blur(20px);
-        }
-
-        .light .glass {
-            background: rgba(255, 255, 255, 0.85);
-            border-color: rgba(0, 0, 0, 0.05);
-        }
-
-        .btn-primary {
-            @apply bg-purple text-white font-bold transition-all duration-300;
-        }
-
-        .btn-primary:hover {
-            @apply bg-purple/90 -translate-y-0.5 shadow-lg shadow-purple/20;
-        }
-
-        #mobile-menu {
-            transition: all 0.3s ease-in-out;
-            transform: translateY(-20%);
-            opacity: 0;
-            pointer-events: none;
-        }
-
-        #mobile-menu.open {
-            transform: translateY(0);
-            opacity: 1;
-            pointer-events: auto;
-        }
-
-        @keyframes float {
-
-            0%,
-            100% {
-                transform: translateY(0);
-            }
-
-            50% {
-                transform: translateY(-5px);
-            }
-        }
-
-        .animate-float {
-            animation: float 3s infinite ease-in-out;
-        }
-
-        .badge-glow {
-            box-shadow: 0 0 20px rgba(169, 82, 231, 0.15);
-            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        .badge-glow:hover {
-            box-shadow: 0 0 30px rgba(169, 82, 231, 0.3);
-            transform: translateY(-2px) scale(1.02);
-        }
-
-        /* Premium Card Switch - High Stability */
-        .pricing-card-container {
-            position: relative;
-            width: 100%;
-            height: 550px;
-        }
-
-        .pricing-card-face {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-            opacity: 0;
-            transform: scale(0.95) translateY(10px);
-            pointer-events: none;
-            visibility: hidden;
-        }
-
-        .pricing-card-face.active {
-            opacity: 1;
-            transform: scale(1) translateY(0);
-            pointer-events: auto;
-            visibility: visible;
-        }
-
-        .price-glow {
-            text-shadow: 0 0 20px rgba(169, 82, 231, 0.4);
-        }
-
-        .perspective-2000 {
-            perspective: 2000px;
-        }
-
-        .rotate-x-1 {
-            transform: rotateX(2deg);
-        }
-
-        .rotate-y-1 {
-            transform: rotateY(2deg);
-        }
-
-        /* Logo adaptive colors */
-        .light .logo-adaptive {
-            filter: brightness(0);
-        }
-    </style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="FactuFlash: facturación, stock y control de cobros para tu comercio. Organizá tus ventas y conocé qué está cobrado y qué sigue pendiente.">
+  <meta name="theme-color" content="#f8f7fc">
+  <title>FactuFlash · Tu negocio, en orden</title>
+  <link rel="stylesheet" href="./style.css?v=20261024-logo4">
 </head>
-
-<body class="bg-white dark:bg-navy text-navy dark:text-white transition-colors duration-300 overflow-x-hidden">
-
-    <!-- NAVBAR -->
-    <nav class="fixed top-0 left-0 right-0 z-[9999] glass h-20 flex items-center transform-gpu" style="transform: translateZ(9999px);">
-        <div class="max-w-7xl mx-auto px-6 w-full flex justify-between items-center">
-            <a href="#" class="flex items-center group">
-                <img src="img/logo.svg?v=2" alt="FactuFlash Logo" class="logo-adaptive w-48 md:w-56 h-auto drop-shadow-[0_0_15px_rgba(31,237,232,0.45)]">
-            </a>
-
-            <!-- Desktop Menu -->
-            <div class="hidden md:flex items-center gap-8">
-                <a href="#features"
-                    class="text-sm font-medium text-slate-600 hover:text-slate-900 dark:text-white/70 dark:hover:text-white transition-colors">Funciones</a>
-                <a href="#pricing"
-                    class="text-sm font-medium text-slate-600 hover:text-slate-900 dark:text-white/70 dark:hover:text-white transition-colors">Precios</a>
-
-                <div class="flex items-center gap-4 border-l border-black/10 dark:border-white/10 pl-8">
-
-                    <a href="/app/#/login" class="text-sm font-semibold text-slate-600 hover:text-slate-900 dark:text-white/70 dark:hover:text-white transition-colors">Ingresar</a>
-                    <a href="/app/#/register" class="btn-primary px-6 py-2.5 rounded-xl text-sm">Empezar gratis</a>
-                </div>
-            </div>
-
-            <!-- Mobile Hamburger -->
-            <div class="md:hidden flex items-center gap-4">
-                <button id="menuBtn" class="p-2 text-navy dark:text-white">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                        stroke-width="2.5">
-                        <line x1="3" y1="12" x2="21" y2="12" />
-                        <line x1="3" y1="6" x2="21" y2="6" />
-                        <line x1="3" y1="18" x2="21" y2="18" />
-                    </svg>
-                </button>
-            </div>
-        </div>
+<body>
+  <a class="skip-link" href="#contenido">Saltar al contenido</a>
+  <header class="header">
+    <nav class="nav wrap" aria-label="Navegación principal">
+      <a class="brand" href="#" aria-label="FactuFlash, inicio"><img class="brand-logo" src="./factuflash-logo.svg?v=20261024-logo4" alt="FactuFlash"></a>
+      <button class="menu-toggle" aria-expanded="false" aria-controls="navigation" aria-label="Abrir menú">☰</button>
+      <div class="nav-links" id="navigation">
+        <a href="#funciones">Funciones</a><a href="#como-funciona">Cómo funciona</a><a href="#preguntas">Preguntas frecuentes</a>
+        <a data-app="login" href="/app/#/login" class="login">Ingresar <span aria-hidden="true">↗</span></a>
+        <a data-app="register" href="/app/#/register" class="button small">Crear mi cuenta <span aria-hidden="true">→</span></a>
+      </div>
     </nav>
-
-    <!-- MOBILE MENU -->
-    <div id="mobile-menu" class="fixed inset-0 z-40 glass pt-24 px-6 flex flex-col gap-6 md:hidden">
-        <a href="#features" class="text-xl font-bold py-2 border-b border-black/5 dark:border-white/5">Funciones</a>
-        <a href="#pricing" class="text-xl font-bold py-2 border-b border-black/5 dark:border-white/5">Precios</a>
-        <a href="/app/#/login" class="text-xl font-bold py-2 border-b border-black/5 dark:border-white/5">Ingresar</a>
-        <a href="/app/#/register" class="btn-primary w-full py-4 rounded-2xl text-center text-lg">Empezar gratis</a>
-
-
-    </div>
-
-    <!-- HERO -->
-    <header class="min-h-screen pt-40 pb-20 px-6 text-center relative overflow-hidden">
-        <!-- Background Decor -->
-        <div class="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-[1000px] h-[600px] bg-purple/10 blur-[120px] rounded-full -z-10 opacity-50"></div>
-        <div class="absolute -top-[200px] -right-[200px] w-[500px] h-[500px] bg-indigo-500/10 blur-[100px] rounded-full -z-10 opacity-30"></div>
-        <div class="max-w-4xl mx-auto relative z-10">
-            <div
-                class="inline-flex items-center gap-3 px-6 py-2.5 rounded-full bg-purple/5 dark:bg-white/5 backdrop-blur-xl border border-purple/30 mb-8 badge-glow group cursor-default animate-float shadow-xl shadow-purple/10 dark:shadow-purple/20">
-                <span class="relative flex h-2 w-2">
-                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple opacity-75"></span>
-                    <span class="relative inline-flex rounded-full h-2 w-2 bg-purple"></span>
-                </span>
-                <span class="text-purple-200 text-[10px] md:text-xs font-black uppercase tracking-[0.25em]">
-                    🇦🇷 Hecho para PYMEs argentinas
-                </span>
+  </header>
+  <main id="contenido">
+    <section class="hero wrap">
+      <div class="hero-copy">
+        <div class="eyebrow"><span class="status-dot"></span> HECHO PARA TU COMERCIO</div>
+        <h1>Menos vueltas.<br>Más tiempo para<br><span>hacer crecer<br class="mobile-break"> tu negocio.</span></h1>
+        <p class="hero-description">Facturá, organizá tu stock y llevá el control de tus cobros. Todo conectado, en un solo lugar.</p>
+        <div class="hero-actions"><a class="button" data-app="register" href="/app/#/register">Empezar ahora <span aria-hidden="true">→</span></a><a class="text-link" href="#como-funciona">Conocé cómo funciona <span aria-hidden="true">↗</span></a></div>
+        <div class="hero-notes"><span>✓ 7 días gratis</span><span>✓ $20.000 / mes</span></div>
+      </div>
+      <div class="hero-visual" aria-label="Ejemplo ilustrativo del panel de FactuFlash">
+        <div class="orbit orbit-one"></div><div class="orbit orbit-two"></div>
+        <div class="dashboard">
+          <div class="window-top"><span class="window-dots">● ● ●</span><span>Tu espacio de trabajo</span><span aria-hidden="true">↗</span></div>
+          <div class="dashboard-body">
+            <aside class="demo-sidebar" aria-hidden="true"><span class="demo-mark">ϟ</span><span class="active">▦</span><span>▤</span><span>▧</span><span>♧</span><span class="sidebar-bottom">⚙</span></aside>
+            <div class="demo-content">
+              <div class="demo-heading"><div><span class="muted">MI COMERCIO</span><h2>Todo bajo control <span>✦</span></h2></div><span class="avatar">MC</span></div>
+              <div class="demo-stats"><div><span>Ventas de hoy</span><strong>$ 248.500<span class="decimal">,00</span></strong><small>Resumen de tu actividad</small></div><div><span>Facturas emitidas</span><strong>18</strong><small>En un mismo lugar</small></div></div>
+              <div class="chart-heading"><strong>Así se mueve tu negocio</strong><span>Esta semana ⌄</span></div>
+              <div class="chart" aria-hidden="true"><div style="--bar:32%"><i></i><span>Lun</span></div><div style="--bar:48%"><i></i><span>Mar</span></div><div style="--bar:40%"><i></i><span>Mié</span></div><div style="--bar:66%"><i></i><span>Jue</span></div><div style="--bar:53%"><i></i><span>Vie</span></div><div class="highlight" style="--bar:90%"><i></i><span>Sáb</span></div><div style="--bar:60%"><i></i><span>Dom</span></div></div>
+              <div class="recent-heading"><strong>Últimos movimientos</strong><span>Ver todos →</span></div>
+              <div class="demo-row"><span class="receipt-icon">▤</span><div><strong>Factura #00018</strong><small>Consumidor final</small></div><b>$ 24.500</b><span class="pill paid">Cobrada</span></div>
+              <div class="demo-row"><span class="receipt-icon">▤</span><div><strong>Factura #00017</strong><small>Consumidor final</small></div><b>$ 18.000</b><span class="pill pending">Pendiente</span></div>
             </div>
-            <h1 class="text-4xl md:text-7xl font-black leading-[1.1] mb-8 tracking-tight">
-                <span class="text-slate-900 dark:text-white">Tu negocio merece</span><br>
-                <span class="text-transparent bg-clip-text bg-gradient-to-r from-purple via-purple-300 to-purple">
-                    facturación sin fricción.
-                </span>
-            </h1>
-            <p class="text-base md:text-lg text-slate-600 dark:text-white/60 max-w-2xl mx-auto mb-10 leading-relaxed">
-                Creá tu catálogo online en minutos, recibí pedidos directo a tu WhatsApp, controlá tu stock y emití comprobantes ARCA desde un solo lugar.
-            </p>
-
-            <!-- Floating Catalog Preview (Premium Touch) -->
-            <div class="relative w-full max-w-3xl mx-auto mt-12 mb-16 perspective-2000 hidden md:block group">
-                <div class="relative bg-white/40 dark:bg-navy/40 backdrop-blur-3xl border border-slate-200 dark:border-white/10 rounded-2xl shadow-2xl overflow-hidden transform group-hover:rotate-x-1 group-hover:rotate-y-1 transition-all duration-700">
-                    <!-- Browser Chrome -->
-                    <div class="h-10 bg-slate-100 dark:bg-white/5 border-b border-slate-200 dark:border-white/5 flex items-center px-4 justify-between">
-                        <div class="flex items-center gap-1.5">
-                            <div class="w-2.5 h-2.5 rounded-full bg-red-500/50"></div>
-                            <div class="w-2.5 h-2.5 rounded-full bg-yellow-500/50"></div>
-                            <div class="w-2.5 h-2.5 rounded-full bg-green-500/50"></div>
-                        </div>
-                        <!-- URL Bar -->
-                        <div class="w-1/2 bg-slate-200/50 dark:bg-white/10 rounded-md text-[10px] py-1 text-slate-500 dark:text-white/40 flex items-center justify-center gap-1.5">
-                            <svg class="w-3 h-3 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
-                            mi-negocio.factuflash.com/catalogo
-                        </div>
-                        <div class="w-12"></div>
-                    </div>
-                    <!-- Catalog Header -->
-                    <div class="px-6 py-4 flex justify-between items-center border-b border-slate-200 dark:border-white/5 bg-slate-50/50 dark:bg-white/5">
-                        <div class="flex items-center gap-2">
-                            <span class="text-xs font-black tracking-wider text-purple">⚡ MI TIENDA</span>
-                        </div>
-                        <div class="flex items-center gap-4">
-                            <div class="text-xs opacity-60 flex items-center gap-1">
-                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-                                Buscar...
-                            </div>
-                            <div class="bg-purple/20 border border-purple/30 text-purple text-[10px] font-bold px-2 py-1 rounded-lg flex items-center gap-1.5">
-                                <span>🛒</span>
-                                <span>Carrito</span>
-                                <span class="bg-purple text-white w-4 h-4 rounded-full flex items-center justify-center text-[8px]">2</span>
-                            </div>
-                        </div>
-                    </div>
-                    <!-- Catalog Body -->
-                    <div class="p-6 flex flex-col gap-4 text-left">
-                        <div class="flex justify-between items-center">
-                            <div>
-                                <h3 class="text-sm font-bold text-slate-800 dark:text-white">Catálogo de Productos</h3>
-                                <p class="text-[10px] opacity-60">Pedí directo por WhatsApp, fácil y rápido</p>
-                            </div>
-                            <span class="bg-green-500/10 text-green-400 text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">● En línea</span>
-                        </div>
-                        <div class="grid grid-cols-3 gap-4">
-                            <!-- Card 1 -->
-                            <div class="bg-slate-100/50 dark:bg-white/5 rounded-xl border border-slate-200 dark:border-white/5 p-3 flex flex-col justify-between gap-2 hover:border-purple/30 transition-all duration-300">
-                                <div class="h-20 bg-gradient-to-br from-purple/10 to-indigo-500/10 rounded-lg flex items-center justify-center relative overflow-hidden group">
-                                    <svg class="w-8 h-8 text-purple/60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.39-2.823 1.07-4"/></svg>
-                                </div>
-                                <div>
-                                    <h4 class="text-xs font-bold text-slate-800 dark:text-white truncate">Zapatillas Pro Run</h4>
-                                    <div class="text-xs font-black text-purple mt-0.5">$54.900</div>
-                                </div>
-                                <button class="w-full py-1.5 bg-purple text-white text-[9px] font-bold rounded-lg hover:bg-purple/90 transition-colors">+ Agregar</button>
-                            </div>
-                            <!-- Card 2 -->
-                            <div class="bg-slate-100/50 dark:bg-white/5 rounded-xl border border-slate-200 dark:border-white/5 p-3 flex flex-col justify-between gap-2 hover:border-purple/30 transition-all duration-300">
-                                <div class="h-20 bg-gradient-to-br from-cyan/10 to-purple/10 rounded-lg flex items-center justify-center relative overflow-hidden">
-                                    <svg class="w-8 h-8 text-cyan/60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
-                                </div>
-                                <div>
-                                    <h4 class="text-xs font-bold text-slate-800 dark:text-white truncate">Auriculares Smart</h4>
-                                    <div class="text-xs font-black text-purple mt-0.5">$32.000</div>
-                                </div>
-                                <button class="w-full py-1.5 bg-purple text-white text-[9px] font-bold rounded-lg hover:bg-purple/90 transition-colors">+ Agregar</button>
-                            </div>
-                            <!-- Card 3 -->
-                            <div class="bg-slate-100/50 dark:bg-white/5 rounded-xl border border-slate-200 dark:border-white/5 p-3 flex flex-col justify-between gap-2 hover:border-purple/30 transition-all duration-300">
-                                <div class="h-20 bg-gradient-to-br from-indigo-500/10 to-cyan/10 rounded-lg flex items-center justify-center relative overflow-hidden">
-                                    <svg class="w-8 h-8 text-indigo-500/60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
-                                </div>
-                                <div>
-                                    <h4 class="text-xs font-bold text-slate-800 dark:text-white truncate">Smartwatch Fit</h4>
-                                    <div class="text-xs font-black text-purple mt-0.5">$45.500</div>
-                                </div>
-                                <button class="w-full py-1.5 bg-purple text-white text-[9px] font-bold rounded-lg hover:bg-purple/90 transition-colors">+ Agregar</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Floating Elements: WhatsApp Checkout Order -->
-                <div class="absolute -bottom-6 -right-10 bg-[#075e54]/95 backdrop-blur-xl border border-emerald-500/30 p-4 rounded-2xl shadow-2xl animate-float hidden lg:block text-left w-72">
-                    <div class="flex items-center gap-3 border-b border-emerald-500/20 pb-2 mb-2">
-                        <div class="w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center text-white text-lg font-bold">
-                            💬
-                        </div>
-                        <div>
-                            <div class="text-[10px] text-emerald-400 uppercase font-black">Pedido Recibido</div>
-                            <div class="text-xs font-bold text-white">WhatsApp Business</div>
-                        </div>
-                    </div>
-                    <div class="bg-white text-slate-800 p-2.5 rounded-lg rounded-tl-none text-[11px] relative shadow-sm leading-relaxed">
-                        <span class="font-bold text-emerald-600">Cliente Nuevo:</span><br>
-                        "¡Hola! 👋 Quiero confirmar este pedido de mi catálogo web:<br>
-                        📦 <span class="font-semibold">1x Zapatillas Pro Run</span> ($54.900)"
-                    </div>
-                </div>
-            </div>
-            <div class="flex flex-col md:flex-row items-center justify-center gap-5 mt-12 pb-20">
-                <a href="/app/#/register?plan=trial" class="btn-primary w-full md:w-auto px-10 py-5 rounded-2xl text-lg shadow-2xl shadow-purple/30 hover:scale-105 transition-all text-white">
-                    Probar 15 días gratis</a>
-                <a href="#features"
-                    class="w-full md:w-auto px-10 py-5 rounded-2xl bg-slate-100 dark:bg-white/5 backdrop-blur-md border border-slate-300 dark:border-white/10 font-bold text-slate-800 dark:text-white hover:bg-slate-200 dark:hover:bg-white/10 transition-all">Ver
-                    funciones →</a>
-            </div>
+          </div>
         </div>
-
-        <!-- Section Transition Fade -->
-        <div class="absolute bottom-0 left-0 w-full h-32 bg-gradient-to-t from-slate-50 dark:from-[#0b0a2a] to-transparent pointer-events-none"></div>
-    </header>
-
-    <!-- FEATURES -->
-    <section id="features" class="py-16 md:py-24 px-6">
-        <div class="max-w-7xl mx-auto">
-            <div class="text-center mb-12 md:mb-16">
-                <span class="text-purple font-bold tracking-[0.2em] text-[10px] md:text-xs uppercase">LO QUE NOS HACE
-                    ÚNICOS</span>
-                <h2 class="text-3xl md:text-4xl font-extrabold mt-4 text-slate-900 dark:text-white">Todo lo que tu negocio necesita</h2>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
-                <!-- Card 1 -->
-                <div
-                    class="p-6 md:p-8 rounded-[24px] md:rounded-[32px] bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 hover:border-purple/30 transition-all group">
-                    <div
-                        class="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-purple/10 text-purple flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                        <svg class="w-7 h-7 md:w-8 md:h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                            <polyline points="14 2 14 8 20 8" />
-                            <path d="m8 13 2 2 4-4" />
-                        </svg>
-                    </div>
-                    <h3 class="text-xl font-bold mb-3 text-slate-900 dark:text-white">Facturación ARCA</h3>
-                    <p class="text-slate-600 dark:text-white/60 text-sm leading-relaxed">Comprobantes A, B y C con CAE automático. Nunca más
-                        entres a la web lenta de ARCA.</p>
-                </div>
-
-                <!-- Card 2 -->
-                <div
-                    class="p-6 md:p-8 rounded-[24px] md:rounded-[32px] bg-purple-50 dark:bg-purple/10 border-2 border-purple/30 dark:border-purple/50 transition-all group">
-                    <div
-                        class="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-purple/10 dark:bg-purple/20 text-purple flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                        <svg class="w-7 h-7 md:w-8 md:h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
-                            <line x1="3" y1="6" x2="21" y2="6"/>
-                            <path d="M16 10a4 4 0 0 1-8 0"/>
-                        </svg>
-                    </div>
-                    <h3 class="text-xl font-bold mb-3 text-slate-900 dark:text-white">Catálogo Web</h3>
-                    <p class="text-slate-600 dark:text-white/60 text-sm leading-relaxed">Tu propia tienda online en minutos. Compartí tu link, recibí pedidos directo a tu WhatsApp y automatizá tus ventas.</p>
-                </div>
-
-                <!-- Card 3 -->
-                <div
-                    class="p-6 md:p-8 rounded-[24px] md:rounded-[32px] bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 hover:border-purple/30 transition-all group">
-                    <div
-                        class="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-purple/10 text-purple flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                        <svg class="w-7 h-7 md:w-8 md:h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path
-                                d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" />
-                            <path d="m3.3 7 8.7 5 8.7-5" />
-                            <path d="M12 22V12" />
-                        </svg>
-                    </div>
-                    <h3 class="text-xl font-bold mb-3 text-slate-900 dark:text-white">Control de Stock</h3>
-                    <p class="text-slate-600 dark:text-white/60 text-sm leading-relaxed">Alertas de stock bajo, historial de movimientos y
-                        reportes de inventario en tiempo real.</p>
-                </div>
-
-                <!-- Card 4 -->
-                <div
-                    class="p-6 md:p-8 rounded-[24px] md:rounded-[32px] bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 hover:border-purple/30 transition-all group">
-                    <div
-                        class="w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-purple/10 text-purple flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                        <svg class="w-7 h-7 md:w-8 md:h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" />
-                            <polyline points="16 7 22 7 22 13" />
-                        </svg>
-                    </div>
-                    <h3 class="text-xl font-bold mb-3 text-slate-900 dark:text-white">Radar INDEC</h3>
-                    <p class="text-slate-600 dark:text-white/60 text-sm leading-relaxed">Sincronización automática con el
-                        índice de precios oficial. Ajustá tus márgenes al instante.</p>
-                </div>
-            </div>
-        </div>
+        <div class="floating-note"><span class="check-icon">✓</span><div><strong>Cada cobro, con su factura</strong><span>Más claridad para cerrar el día.</span></div></div>
+        <span class="demo-caption">Vista ilustrativa · Datos de ejemplo</span>
+      </div>
     </section>
-
-    <!-- PRICING -->
-    <section id="pricing" class="py-32 md:py-40 px-6 bg-slate-50 dark:bg-black/20 transition-colors relative scroll-mt-24">
-        <div class="max-w-7xl mx-auto text-center">
-            <span class="text-purple font-bold tracking-[0.2em] text-[10px] md:text-xs uppercase">PRECIOS
-                TRANSPARENTES</span>
-            <h2 class="text-3xl md:text-4xl font-extrabold mt-4 mb-6 text-slate-900 dark:text-white">Un solo plan, <span class="text-purple">todo el poder</span></h2>
-
-            <!-- Toggle FactuFlash -->
-            <div class="flex items-center justify-center gap-4 mb-8">
-                <span class="text-sm font-bold text-slate-500 dark:text-white/60" :class="{'text-slate-900 dark:text-white': !isYearly}">Mensual</span>
-                <button id="priceToggle" class="w-14 h-8 bg-purple/10 dark:bg-purple/20 rounded-full p-1 relative transition-all">
-                    <div id="toggleCircle" class="w-6 h-6 bg-purple rounded-full transition-all transform translate-x-0"></div>
-                </button>
-                <div class="flex flex-col items-start">
-                    <div class="flex items-center gap-2">
-                        <span class="text-sm font-bold text-slate-500 dark:text-white/60" :class="{'text-slate-900 dark:text-white': isYearly}">Anual</span>
-                        <span class="bg-purple/10 dark:bg-purple/20 text-purple text-[9px] font-black px-2 py-0.5 rounded-full uppercase">¡$100.000 OFF!</span>
-                    </div>
-                </div>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-10 max-w-4xl mx-auto items-stretch">
-                <!-- Trial -->
-                <div class="p-6 md:p-8 rounded-[32px] md:rounded-[40px] bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 flex flex-col items-center shadow-xl shadow-slate-200/50 dark:shadow-none">
-                    <h4 class="text-lg font-bold text-slate-500 dark:text-white/60 uppercase tracking-widest text-[10px] mb-1">Comenzar</h4>
-                    <h3 class="text-xl font-black mb-2 text-slate-900 dark:text-white">Prueba Gratis</h3>
-                    <div class="mb-4">
-                        <span class="text-4xl md:text-5xl font-black text-slate-900 dark:text-white">$0</span>
-                        <span class="text-slate-500 dark:text-white/40 text-sm">/ 15 días</span>
-                    </div>
-                    <ul class="text-sm text-slate-700 dark:text-white/70 space-y-2 mb-6 text-left w-full border-t border-slate-100 dark:border-white/5 pt-4">
-                        <li class="flex items-center gap-3"><span class="text-purple font-bold">✔</span> Facturación ARCA + CAE</li>
-                        <li class="flex items-center gap-3"><span class="text-purple font-bold">✔</span> Stock ilimitado</li>
-                        <li class="flex items-center gap-3"><span class="text-purple font-bold">✔</span> Mercado Pago / POS</li>
-                        <li class="flex items-center gap-3"><span class="text-purple font-bold">✔</span> Catálogo digital</li>
-                        <li class="flex items-center gap-3"><span class="text-purple font-bold">✔</span> Soporte incluido</li>
-                        <li class="flex items-center gap-3"><span class="text-purple font-bold">✔</span> Radar Inflación (INDEC)</li>
-                    </ul>
-                    <a href="/app/#/register?plan=trial" class="w-full py-4 rounded-2xl bg-slate-200 dark:bg-white/10 font-bold text-slate-900 dark:text-white hover:bg-slate-300 dark:hover:bg-white/20 transition-all text-center mt-auto">Empezar ahora</a>
-                </div>
-
-                <!-- Premium (Stable Switch) -->
-                <div class="pricing-card-container">
-                    <!-- FRONT: MONTHLY -->
-                    <div id="cardMonthly" class="pricing-card-face active p-6 md:p-8 rounded-[32px] md:rounded-[40px] bg-white dark:bg-[#0f172a] border-2 border-purple shadow-2xl shadow-purple/10 dark:shadow-purple/20 flex flex-col items-center">
-                        <div class="absolute -top-4 bg-purple text-white font-bold text-[10px] py-1.5 px-5 rounded-full uppercase tracking-widest shadow-lg shadow-purple/30">Recomendado</div>
-                        <h4 class="text-lg font-bold uppercase tracking-widest text-[10px] mb-1 text-slate-500 dark:text-white/60">Plan Mensual</h4>
-                        <h3 class="text-xl font-black mb-2 text-slate-900 dark:text-white">Acceso Completo</h3>
-                        <div class="mb-4">
-                            <span class="text-4xl md:text-5xl font-black text-slate-900 dark:text-white price-glow">$35.000</span>
-                            <span class="text-slate-500 dark:text-white/40 text-sm">/ mes</span>
-                        </div>
-                        <ul class="text-sm text-slate-700 dark:text-white/80 space-y-2 mb-6 text-left w-full border-t border-slate-100 dark:border-purple/10 pt-4">
-                            <li class="flex items-center gap-3"><span class="text-purple font-bold">✔</span> Facturación ARCA + CAE</li>
-                            <li class="flex items-center gap-3"><span class="text-purple font-bold">✔</span> Stock ilimitado</li>
-                            <li class="flex items-center gap-3"><span class="text-purple font-bold">✔</span> Mercado Pago / POS</li>
-                            <li class="flex items-center gap-3"><span class="text-purple font-bold">✔</span> Catálogo digital</li>
-                            <li class="flex items-center gap-3"><span class="text-purple font-bold">✔</span> Soporte incluido</li>
-                            <li class="flex items-center gap-3"><span class="text-purple font-bold">✔</span> Radar Inflación (INDEC)</li>
-                        </ul>
-                        <a href="/app/#/register?plan=monthly" class="btn-primary w-full py-5 rounded-2xl text-center text-lg shadow-xl shadow-purple/20 mt-auto">Elegir Mensual</a>
-                    </div>
-
-                    <!-- BACK: YEARLY -->
-                    <div id="cardYearly" class="pricing-card-face p-6 md:p-8 rounded-[32px] md:rounded-[40px] bg-white dark:bg-[#1e1b4b] border-2 border-purple shadow-2xl shadow-purple/10 dark:shadow-purple/20 flex flex-col items-center">
-                        <div class="absolute -top-4 bg-purple text-white font-bold text-[10px] py-1.5 px-5 rounded-full uppercase tracking-widest shadow-lg shadow-purple/30">¡Ahorro Máximo!</div>
-                        <h4 class="text-lg font-bold uppercase tracking-widest text-[10px] mb-1 text-slate-500 dark:text-white/60">Plan Anual</h4>
-                        <h3 class="text-xl font-black mb-2 text-slate-900 dark:text-white">Acceso Completo</h3>
-                        <div class="mb-1">
-                            <span class="text-4xl md:text-5xl font-black text-slate-900 dark:text-white price-glow">$320.000</span>
-                            <span class="text-slate-500 dark:text-white/40 text-sm">/ año</span>
-                        </div>
-                        <div class="bg-purple/10 dark:bg-purple/20 text-purple text-[10px] font-bold px-3 py-0.5 rounded-full mb-3">
-                            Te ahorrás $100.000
-                        </div>
-                        <ul class="text-sm text-slate-700 dark:text-white/80 space-y-2 mb-6 text-left w-full border-t border-slate-100 dark:border-purple/10 pt-4">
-                            <li class="flex items-center gap-3"><span class="text-purple font-bold">✔</span> Facturación ARCA + CAE</li>
-                            <li class="flex items-center gap-3"><span class="text-purple font-bold">✔</span> Stock ilimitado</li>
-                            <li class="flex items-center gap-3"><span class="text-purple font-bold">✔</span> Mercado Pago / POS</li>
-                            <li class="flex items-center gap-3"><span class="text-purple font-bold">✔</span> Catálogo digital</li>
-                            <li class="flex items-center gap-3"><span class="text-purple font-bold">✔</span> Soporte incluido</li>
-                            <li class="flex items-center gap-3"><span class="text-purple font-bold">✔</span> Radar Inflación (INDEC)</li>
-                        </ul>
-                        <a href="/app/#/register?plan=yearly" class="btn-primary w-full py-5 rounded-2xl text-center text-lg shadow-xl shadow-purple/20 mt-auto">Elegir Anual</a>
-                    </div>
-                </div>
-            </div>
-        </div>
+    <div class="benefit-strip"><div class="wrap"><span>UN DÍA MÁS SIMPLE</span><strong>Facturación</strong><i>✦</i><strong>Stock</strong><i>✦</i><strong>Cobros</strong><i>✦</i><strong>Catálogo online</strong></div></div>
+    <section id="funciones" class="section wrap">
+      <div class="section-heading"><div><span class="eyebrow">TODO EN SU LUGAR</span><h2>Tu comercio tiene mucho movimiento.<br> Tu sistema lo sigue.</h2></div><p>De la primera venta al cierre de caja, encontrá lo que necesitás sin cambiar de herramienta.</p></div>
+      <div class="feature-grid">
+        <article class="feature featured"><span class="feature-icon">▤</span><span class="feature-number">01 / FACTURACIÓN</span><h3>De venta a factura,<br>sin volver a cargar todo.</h3><p>Elegí los productos y el cliente. Emití comprobantes con tu cuenta de ARCA vinculada y consultalos cuando los necesites.</p><div class="mini-invoice"><span>Factura emitida</span><strong>Lista para compartir <span>↗</span></strong><div></div><div></div><div></div></div></article>
+        <article class="feature"><span class="feature-icon">▧</span><span class="feature-number">02 / INVENTARIO</span><h3>Sabé qué tenés.<br>Y qué hace falta.</h3><p>Productos, variantes y existencias organizados. El stock se actualiza al registrar tus ventas.</p><div class="stock-example"><span><i class="status-dot"></i> Remera básica</span><b>24 unidades</b></div></article>
+        <article class="feature"><span class="feature-icon">↔</span><span class="feature-number">03 / COBROS</span><h3>Emitida y cobrada.<br>Cada estado, bien claro.</h3><p>Diferenciá las facturas pendientes de los cobros confirmados y conservá la referencia de cada operación.</p><div class="pill-row"><span class="pill pending">Pendiente</span><span>→</span><span class="pill paid">Cobrada</span></div></article>
+        <article class="feature catalog-feature"><div><span class="feature-number">04 / CATÁLOGO ONLINE</span><h3>Tu vidriera también es digital.</h3><p>Compartí tus productos con un catálogo propio y personalizalo para tu negocio.</p></div><a data-app="register" href="/app/#/register" class="round-link" aria-label="Crear mi cuenta para armar un catálogo">↗</a></article>
+      </div>
     </section>
-
-    <!-- FOOTER -->
-    <footer class="py-16 px-6 border-t border-slate-200 dark:border-white/5 bg-slate-100 dark:bg-navy/40 relative overflow-hidden">
-        <!-- Glow effect in footer -->
-        <div class="absolute top-0 right-0 w-[500px] h-[500px] bg-purple/5 blur-[150px] -z-10"></div>
-        
-        <div class="max-w-7xl mx-auto">
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-12 mb-12">
-                <!-- Brand Column -->
-                <div class="col-span-1 flex flex-col items-center md:items-start">
-                    <a href="#" class="mb-6 flex items-center group">
-                        <img src="img/logo.svg" alt="FactuFlash Logo" class="logo-adaptive w-40 md:w-48 h-auto opacity-90 hover:opacity-100 transition-all drop-shadow-[0_0_10px_rgba(31,237,232,0.25)]">
-                    </a>
-                    <p class="text-sm text-slate-500 dark:text-white/50 text-center md:text-left leading-relaxed max-w-xs">
-                        Revolucionando la facturación en Argentina con tecnología de punta y simplicidad absoluta.
-                    </p>
-                </div>
-
-                <!-- Links Column 1 -->
-                <div class="flex flex-col items-center md:items-start w-full">
-                    <h4 class="font-bold text-slate-900 dark:text-white mb-4 md:mb-6 uppercase text-xs tracking-widest text-center md:text-left">Producto</h4>
-                    <ul class="space-y-4 text-sm text-slate-600 dark:text-white/60 flex flex-col items-center md:items-start w-full">
-                        <li><a href="#features" class="hover:text-purple hover:opacity-100 transition-all text-center md:text-left block w-full">Funcionalidades</a></li>
-                        <li><a href="#pricing" class="hover:text-purple hover:opacity-100 transition-all text-center md:text-left block w-full">Precios</a></li>
-                        <li><a href="#" class="hover:text-purple hover:opacity-100 transition-all text-center md:text-left block w-full">Soporte</a></li>
-                    </ul>
-                </div>
-
-                <!-- Links Column 2 -->
-                <div class="flex flex-col items-center md:items-start w-full">
-                    <h4 class="font-bold text-slate-900 dark:text-white mb-4 md:mb-6 uppercase text-xs tracking-widest text-center md:text-left">Legal</h4>
-                    <ul class="space-y-4 text-sm text-slate-600 dark:text-white/60 flex flex-col items-center md:items-start w-full">
-                        <li><a href="#" class="hover:text-purple hover:opacity-100 transition-all text-center md:text-left block w-full">Términos</a></li>
-                        <li><a href="#" class="hover:text-purple hover:opacity-100 transition-all text-center md:text-left block w-full">Privacidad</a></li>
-                    </ul>
-                </div>
-            </div>
-
-            <div class="pt-8 border-t border-slate-200 dark:border-white/5 flex justify-center md:justify-between items-center w-full">
-                <p class="text-[10px] text-slate-400 dark:text-white/30 uppercase tracking-widest text-center md:text-left w-full md:w-auto">
-                    © 2026 FactuFlash. Todos los derechos reservados.
-                </p>
-            </div>
-        </div>
-    </footer>
-
-    <script>
-        const menuBtn = document.getElementById('menuBtn');
-        const mobileMenu = document.getElementById('mobile-menu');
-        const html = document.documentElement;
-
-        // Modo oscuro forzado
-        html.classList.add('dark');
-        html.classList.remove('light');
-        localStorage.setItem('theme', 'dark');
-
-        menuBtn.addEventListener('click', () => {
-            mobileMenu.classList.toggle('open');
-            const isOpen = mobileMenu.classList.contains('open');
-            menuBtn.innerHTML = isOpen
-                ? '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'
-                : '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>';
-        });
-
-        mobileMenu.querySelectorAll('a').forEach(link => {
-            link.addEventListener('click', () => {
-                mobileMenu.classList.remove('open');
-            });
-        });
-
-        // Pricing Toggle Logic (Stable Fade/Scale)
-        const priceToggle = document.getElementById('priceToggle');
-        const toggleCircle = document.getElementById('toggleCircle');
-        const cardMonthly = document.getElementById('cardMonthly');
-        const cardYearly = document.getElementById('cardYearly');
-        let isYearly = false;
-
-        priceToggle?.addEventListener('click', () => {
-            isYearly = !isYearly;
-            
-            if (isYearly) {
-                toggleCircle.style.transform = 'translateX(24px)';
-                cardMonthly.classList.remove('active');
-                cardYearly.classList.add('active');
-            } else {
-                toggleCircle.style.transform = 'translateX(0)';
-                cardMonthly.classList.add('active');
-                cardYearly.classList.remove('active');
-            }
-        });
-    </script>
+    <section id="como-funciona" class="workflow-section"><div class="wrap workflow"><div><span class="eyebrow">DEL MOSTRADOR AL SISTEMA</span><h2>Vendé con un proceso<br>que podés seguir.</h2><p>Una factura emitida no significa que el pago esté aprobado. FactuFlash te ayuda a distinguir cada paso.</p><a class="button" data-app="register" href="/app/#/register">Organizar mi negocio <span>→</span></a></div><ol class="steps"><li><span>01</span><div><h3>Armá la venta</h3><p>Seleccioná productos, cantidades y el medio de pago.</p></div></li><li><span>02</span><div><h3>Emití la factura</h3><p>Ingresá la venta y los datos del cobro aprobado en tu posnet para emitir la factura.</p></div></li><li><span>03</span><div><h3>Confirmá el cobro</h3><p>Cargá el importe y la referencia del comprobante aprobado. El registro del posnet es manual y no vuelve a cobrar la venta.</p></div></li></ol></div></section>
+    <section id="preguntas" class="section wrap faq-section"><div><span class="eyebrow">ANTES DE EMPEZAR</span><h2>Las cosas claras.</h2><p>Algunas respuestas para conocer<br>cómo funciona FactuFlash.</p></div><div class="faqs"><details><summary>¿Necesito instalar algo?<span>+</span></summary><p>El sistema funciona desde el navegador de tu computadora, tablet o celular. Necesitás conexión a internet.</p></details><details><summary>¿Funciona con cualquier posnet?<span>+</span></summary><p>Sí: cobrá en tu posnet y registrá manualmente el importe y la referencia del comprobante aprobado para facturar la venta. Esta modalidad no requiere conectar el posnet a una API.</p></details><details><summary>¿Qué necesito para emitir facturas?<span>+</span></summary><p>Tenés que vincular tu cuenta de ARCA y configurar los datos de tu comercio y punto de venta desde la aplicación.</p></details><details><summary>¿Puede usarlo mi equipo?<span>+</span></summary><p>Sí. Podés administrar cajeros y consultar las facturas asociadas a cada uno desde tu cuenta.</p></details><details><summary>¿Dónde consulto los planes?<span>+</span></summary><p>Tenés 7 días de prueba gratuita. Después, elegí el plan mensual por $20.000 o el anual por $240.000, en pesos argentinos. El acceso de prueba vence a los 7 días; un pago confirmado habilita el período contratado.</p></details></div></section>
+    <section class="wrap final-cta"><div><span class="eyebrow">DALE ORDEN A TU DÍA</span><h2>Tu próxima venta,<br>un poco más simple.</h2></div><a class="button" data-app="register" href="/app/#/register">Crear mi cuenta <span>→</span></a><span class="cta-decoration" aria-hidden="true">ϟ</span></section>
+  </main>
+  <footer class="wrap footer"><a class="brand" href="#"><img class="brand-logo" src="./factuflash-logo.svg?v=20261024-logo4" alt="FactuFlash"></a><p>Hecho para acompañar a tu comercio.</p><span>© <span id="year">2026</span> FactuFlash</span></footer>
+  <script type="module" src="./main.js"></script>
 </body>
-
 </html>

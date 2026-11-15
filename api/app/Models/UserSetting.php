@@ -14,6 +14,20 @@ class UserSetting extends Model
     protected $primaryKey = 'user_id';
     public $incrementing = false;
 
+    // These values remain available to server-side integrations, never to JSON responses.
+    protected $hidden = ['mp_access_token', 'pos_clover_access_token', 'arca_cert_path', 'arca_key_path'];
+    protected $appends = ['mp_configured', 'pos_clover_configured'];
+
+    public function getMpConfiguredAttribute(): bool
+    {
+        return filled($this->mp_access_token);
+    }
+
+    public function getPosCloverConfiguredAttribute(): bool
+    {
+        return filled($this->pos_clover_access_token);
+    }
+
     protected $fillable = [
         'user_id',
         'slug',
@@ -55,6 +69,13 @@ class UserSetting extends Model
         'pos_provider',
         'pos_clover_merchant_id',
         'pos_clover_access_token',
+        'fiscal_jurisdiction',
+        'business_activity',
+        'iibb_number',
+        'iibb_condition',
+        'iibb_regime',
+        'default_iibb_alicuota',
+        'onboarding_complete',
     ];
 
     protected function casts(): array
@@ -63,10 +84,12 @@ class UserSetting extends Model
             'arca_connected' => 'boolean',
             'arca_pto_vta' => 'integer',
             'dollar_rate' => 'decimal:2',
+            'default_iibb_alicuota' => 'decimal:2',
             'inflation_rate' => 'decimal:2',
             'catalog_show_stock' => 'boolean',
             'catalog_show_price' => 'boolean',
             'catalog_grid_columns' => 'integer',
+            'onboarding_complete' => 'boolean',
         ];
     }
 

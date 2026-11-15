@@ -9,10 +9,17 @@ export interface User {
   company_name: string | null
   plan_status: string
   days_left: number
+  has_access: boolean
+  paid_until: string | null
+  trial_expires_at: string | null
   role: string
   owner_id: number | null
   cash_register_name: string | null
   api_token: string | null
+  settings?: {
+    onboarding_complete?: boolean
+    [key: string]: any
+  } | null
 }
 
 export const useAuthStore = defineStore('auth', () => {
@@ -47,9 +54,12 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const res = await authApi.me()
       user.value = res.data.user
-    } catch {
-      token.value = null
-      localStorage.removeItem('token')
+    } catch (error: any) {
+      if (error?.response?.status === 401) {
+        token.value = null
+        user.value = null
+        localStorage.removeItem('token')
+      }
     }
   }
 

@@ -11,6 +11,13 @@ const deleting = ref<number | null>(null)
 const confirmDelete = ref<any | null>(null)
 const deleteError = ref('')
 
+// ── Exportación ──
+const showExport = ref(false)
+const exportFrom = ref('')
+const exportTo = ref('')
+const exporting = ref<'excel' | 'zip' | null>(null)
+const exportError = ref('')
+
 onMounted(async () => {
   await load()
 })
@@ -39,8 +46,6 @@ async function doDelete(id: number) {
   deleteError.value = ''
   try {
     await invoicesApi.delete(id)
-    // Si tenía CAE → quedó como 'annulled' en el backend, actualizamos el estado en lista
-    // Si no tenía CAE → fue borrada físicamente, la sacamos de la lista
     const inv = invoices.value.find(i => i.id === id)
     if (inv?.cae) {
       inv.status = 'annulled'
@@ -53,6 +58,47 @@ async function doDelete(id: number) {
     deleteError.value = e?.response?.data?.error || 'Error al anular la factura. Intentá de nuevo.'
   } finally {
     deleting.value = null
+  }
+}
+
+function triggerBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
+async function doExportExcel() {
+  exporting.value = 'excel'
+  exportError.value = ''
+  try {
+    const res = await invoicesApi.exportExcel(exportFrom.value || undefined, exportTo.value || undefined)
+    const suffix = exportFrom.value ? `_${exportFrom.value}_a_${exportTo.value || 'hoy'}` : ''
+    triggerBlob(res.data, `facturas${suffix}.csv`)
+    showExport.value = false
+  } catch (e: any) {
+    exportError.value = e?.response?.data?.error ?? 'Error al exportar. Intentá de nuevo.'
+  } finally {
+    exporting.value = null
+  }
+}
+
+async function doExportZip() {
+  exporting.value = 'zip'
+  exportError.value = ''
+  try {
+    const res = await invoicesApi.exportZip(exportFrom.value || undefined, exportTo.value || undefined)
+    const suffix = exportFrom.value ? `_${exportFrom.value}_a_${exportTo.value || 'hoy'}` : ''
+    triggerBlob(res.data, `facturas${suffix}.zip`)
+    showExport.value = false
+  } catch (e: any) {
+    exportError.value = e?.response?.data?.error ?? 'Error al exportar. Intentá de nuevo.'
+  } finally {
+    exporting.value = null
   }
 }
 
@@ -83,10 +129,16 @@ function statusLabel(s: string) {
         <h1 class="page-title">Facturas</h1>
         <p class="page-subtitle">Gestioná tus facturas electrónicas</p>
       </div>
-      <button class="btn btn-primary" @click="router.push('/facturas/nueva')">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        Nueva Factura
-      </button>
+      <div class="flex gap-2">
+        <button class="btn btn-ghost" @click="showExport = true" id="btn-export-facturas">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Exportar
+        </button>
+        <button class="btn btn-primary" @click="router.push('/facturas/nueva')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Nueva Factura
+        </button>
+      </div>
     </div>
 
     <!-- Search -->
@@ -164,6 +216,61 @@ function statusLabel(s: string) {
       </div>
     </div>
 
+    <!-- ══ MODAL EXPORTACIÓN ══ -->
+    <Transition name="fade">
+      <div v-if="showExport" class="modal-overlay" @click.self="showExport = false">
+        <div class="modal-box" style="max-width:460px;">
+          <div class="modal-header">
+            <h3 class="modal-title">📊 Exportar Facturas</h3>
+            <button class="btn btn-ghost btn-icon" @click="showExport = false">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+
+          <p style="font-size:0.875rem;color:var(--text-muted);margin-bottom:1.25rem;">
+            Filtrá por período o dejalo vacío para exportar <strong>todas</strong> las facturas.
+          </p>
+
+          <div class="flex gap-3 mb-4">
+            <div class="form-group" style="flex:1;margin:0;">
+              <label class="form-label">Desde</label>
+              <input type="date" v-model="exportFrom" class="form-input" id="export-from" />
+            </div>
+            <div class="form-group" style="flex:1;margin:0;">
+              <label class="form-label">Hasta</label>
+              <input type="date" v-model="exportTo" class="form-input" id="export-to" />
+            </div>
+          </div>
+
+          <p v-if="exportError" style="color:var(--danger);font-size:0.85rem;margin-bottom:0.75rem;padding:0.6rem;background:rgba(248,113,113,0.1);border-radius:8px;">{{ exportError }}</p>
+
+          <div class="export-options">
+            <button class="export-btn" @click="doExportExcel" :disabled="!!exporting" id="btn-export-excel">
+              <span v-if="exporting === 'excel'" class="spinner" style="width:22px;height:22px;"></span>
+              <template v-else>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:#22c55e"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+              </template>
+              <div>
+                <div class="export-btn-title">Exportar Excel / CSV</div>
+                <div class="export-btn-sub">Abre en Excel, LibreOffice y Google Sheets. Con columnas: fecha, número, cliente, IVA, total, CAE.</div>
+              </div>
+            </button>
+
+            <button class="export-btn" @click="doExportZip" :disabled="!!exporting" id="btn-export-zip">
+              <span v-if="exporting === 'zip'" class="spinner" style="width:22px;height:22px;"></span>
+              <template v-else>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:#a78bfa"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+              </template>
+              <div>
+                <div class="export-btn-title">Descargar PDFs (ZIP)</div>
+                <div class="export-btn-sub">Un PDF por factura, todo comprimido en un archivo .zip listo para el contador.</div>
+              </div>
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
     <!-- Confirm delete modal -->
     <Transition name="fade">
       <div v-if="confirmDelete" class="modal-overlay" @click.self="confirmDelete = null">
@@ -196,4 +303,24 @@ function statusLabel(s: string) {
 
 <style scoped>
 .mono { font-family: 'Courier New', monospace; font-size: 0.82rem; color: var(--text-muted); }
+
+.export-options { display: flex; flex-direction: column; gap: 0.75rem; }
+.export-btn {
+  display: flex; align-items: center; gap: 1rem;
+  width: 100%; padding: 1rem 1.25rem; text-align: left;
+  background: var(--surface-1, rgba(255,255,255,0.04));
+  border: 1px solid var(--border, rgba(255,255,255,0.1));
+  border-radius: 12px; cursor: pointer; color: var(--text-primary);
+  transition: all 0.2s; font-family: inherit;
+}
+.export-btn:hover:not(:disabled) {
+  border-color: var(--primary);
+  background: rgba(99,102,241,0.08);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 15px rgba(99,102,241,0.15);
+}
+.export-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.export-btn svg { flex-shrink: 0; }
+.export-btn-title { font-weight: 600; font-size: 0.95rem; margin-bottom: 0.2rem; }
+.export-btn-sub { font-size: 0.78rem; color: var(--text-muted); line-height: 1.4; }
 </style>

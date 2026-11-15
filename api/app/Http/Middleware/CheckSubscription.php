@@ -23,7 +23,7 @@ class CheckSubscription
         $owner = $user->owner_id ? \App\Models\User::find($user->owner_id) : $user;
 
         if (!$owner) {
-            return $next($request);
+            return response()->json(['error' => 'subscription_required'], 402);
         }
 
         // 0. Si el usuario es el admin/dueño del sistema, pasa siempre
@@ -31,13 +31,8 @@ class CheckSubscription
             return $next($request);
         }
 
-        // 1. Si el plan está activo, pasa
-        if ($owner->plan_status === 'active') {
-            return $next($request);
-        }
-
-        // 2. Si está en prueba y no expiró, pasa
-        if ($owner->plan_status === 'trial' && $owner->trial_expires_at && $owner->trial_expires_at->isFuture()) {
+        // Access is bounded by verified paid time or the original seven-day trial.
+        if ($owner->has_access) {
             return $next($request);
         }
 
@@ -46,6 +41,8 @@ class CheckSubscription
             'api/v1/subscription/plans',
             'api/v1/subscription/checkout*',
             'api/v1/subscription/status',
+            'api/v1/subscription/cancel',
+            'api/v1/mp/subscription-preference',
             'api/v1/auth/me',
             'api/v1/auth/logout',
             'api/v1/settings'
@@ -60,7 +57,7 @@ class CheckSubscription
 
         return response()->json([
             'error' => 'subscription_required',
-            'message' => 'Tu período de prueba ha expirado. Por favor, elige un plan para continuar usando FactuFlash.'
+            'message' => 'Tu período de acceso finalizó. Elegí un plan para continuar usando FactuFlash.'
         ], 402);
     }
 }

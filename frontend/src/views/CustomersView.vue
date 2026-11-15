@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, reactive } from 'vue'
-import { customersApi } from '@/api/services'
+import { customersApi, padronApi } from '@/api/services'
+import { isValidCuit, formatCuit } from '@/utils/validators'
 
 const customers = ref<any[]>([])
 const loading = ref(true)
@@ -12,7 +13,8 @@ const deleting = ref<number | null>(null)
 const confirmDelete = ref<any | null>(null)
 const toast = ref<{ msg: string; type: string } | null>(null)
 
-const form = reactive({ name: '', cuit: '', email: '', phone: '', address: '' })
+const consultandoPadron = ref(false)
+const form = reactive({ name: '', document_id: '', email: '', phone: '', address: '', iva_condition_id: '', iibb_alicuota: '', iibb_exempt: false })
 
 onMounted(load)
 
@@ -29,25 +31,83 @@ async function load() {
 const filtered = computed(() =>
   customers.value.filter(c => {
     const q = search.value.toLowerCase()
-    return !q || c.name.toLowerCase().includes(q) || c.cuit?.includes(q) || c.email?.toLowerCase().includes(q)
+    return !q || c.name.toLowerCase().includes(q) || c.document_id?.includes(q) || c.email?.toLowerCase().includes(q)
   })
 )
 
 function openCreate() {
   editing.value = null
-  Object.assign(form, { name: '', cuit: '', email: '', phone: '', address: '' })
+  Object.assign(form, { name: '', document_id: '', email: '', phone: '', address: '', iva_condition_id: '', iibb_alicuota: '', iibb_exempt: false })
   showModal.value = true
 }
 function openEdit(c: any) {
   editing.value = c
-  Object.assign(form, { name: c.name, cuit: c.cuit ?? '', email: c.email ?? '', phone: c.phone ?? '', address: c.address ?? '' })
+  Object.assign(form, { name: c.name, document_id: c.document_id ?? '', email: c.email ?? '', phone: c.phone ?? '', address: c.address ?? '', iva_condition_id: c.iva_condition_id ?? '', iibb_alicuota: c.iibb_alicuota ?? '', iibb_exempt: !!c.iibb_exempt })
   showModal.value = true
 }
 
+async function consultarPadron() {
+  const clean = form.document_id.replace(/\D/g, '')
+  if (clean.length !== 11 || !isValidCuit(clean)) {
+    showToast('Ingresá un CUIT válido de 11 dígitos para consultar en el padrón de ARCA', 'error')
+    return
+  }
+  consultandoPadron.value = true
+  try {
+    const res = await padronApi.lookup(clean)
+    if (res.data?.success && res.data?.data) {
+      const d = res.data.data
+      if (d.name) form.name = d.name
+      if (d.cuit) form.document_id = d.cuit
+      if (d.iva_condition_id) form.iva_condition_id = String(d.iva_condition_id)
+      if (d.address) form.address = d.address
+      showToast('Datos fiscales cargados automáticamente desde ARCA (' + (d.iva_condition_name || 'OK') + ')', 'success')
+    } else {
+      showToast('No se encontró información en el padrón de ARCA', 'error')
+    }
+  } catch (e: any) {
+    showToast(e?.response?.data?.error || 'Error al consultar padrón de ARCA', 'error')
+  } finally {
+    consultandoPadron.value = false
+  }
+}
+
+function onDocBlur() {
+  const clean = form.document_id.replace(/\D/g, '')
+  if (clean.length === 11 && isValidCuit(clean)) {
+    form.document_id = formatCuit(clean)
+  }
+}
+
 async function save() {
+  const cond = Number(form.iva_condition_id || 5)
+  const cleanDoc = form.document_id.replace(/\D/g, '')
+
+  if ([1, 4, 6].includes(cond)) {
+    if (!cleanDoc) {
+      showToast('El CUIT es obligatorio para Responsables Inscriptos, Monotributistas y Exentos', 'error')
+      return
+    }
+    if (!isValidCuit(cleanDoc)) {
+      showToast('El CUIT ingresado no es válido (verificá los 11 dígitos y el dígito verificador)', 'error')
+      return
+    }
+  } else if (cleanDoc) {
+    if (cleanDoc.length === 11 && !isValidCuit(cleanDoc)) {
+      showToast('El CUIT ingresado no es válido (verificá el dígito verificador)', 'error')
+      return
+    } else if (![7, 8, 11].includes(cleanDoc.length)) {
+      showToast('El documento debe ser un DNI (7-8 dígitos) o CUIT (11 dígitos)', 'error')
+      return
+    }
+  }
+
   saving.value = true
   try {
     const payload = { ...form }
+    if (cleanDoc.length === 11 && isValidCuit(cleanDoc)) {
+      payload.document_id = formatCuit(cleanDoc)
+    }
     if (editing.value) {
       await customersApi.update(editing.value.id, payload)
       showToast('Cliente actualizado', 'success')
@@ -142,7 +202,7 @@ function initials(name: string) {
                   <span class="font-semibold">{{ c.name }}</span>
                 </div>
               </td>
-              <td class="mono text-sm">{{ c.cuit || '—' }}</td>
+              <td class="mono text-sm">{{ c.document_id || '—' }}</td>
               <td class="text-sm text-muted">{{ c.email || '—' }}</td>
               <td class="text-sm text-muted">{{ c.phone || '—' }}</td>
               <td class="text-sm text-muted truncate" style="max-width:180px;">{{ c.address || '—' }}</td>
@@ -168,7 +228,7 @@ function initials(name: string) {
             <div class="customer-avatar" style="width:42px; height:42px; font-size:0.9rem;">{{ initials(c.name) }}</div>
             <div>
               <div class="font-bold" style="font-size:1rem;">{{ c.name }}</div>
-              <div class="text-xs text-muted">{{ c.cuit || 'Sin CUIT' }}</div>
+              <div class="text-xs text-muted">{{ c.document_id || 'Sin CUIT' }}</div>
             </div>
           </div>
           <div class="flex flex-col gap-1 text-sm text-muted">
@@ -207,13 +267,21 @@ function initials(name: string) {
                 <input v-model="form.name" class="form-input" placeholder="Empresa S.A." required />
               </div>
               <div class="form-group">
-                <label class="form-label">CUIT *</label>
-                <input v-model="form.cuit" class="form-input" placeholder="20-12345678-9" required />
+                <div class="flex items-center justify-between" style="margin-bottom:0.25rem;">
+                  <label class="form-label" style="margin-bottom:0;">CUIT / DNI *</label>
+                  <button type="button" class="btn btn-ghost btn-sm" @click="consultarPadron" :disabled="consultandoPadron" style="padding:2px 8px;font-size:0.75rem;color:var(--primary);display:inline-flex;align-items:center;gap:4px;">
+                    <span v-if="consultandoPadron" class="spinner" style="width:12px;height:12px;"></span>
+                    <span v-else>🔍 Consultar ARCA</span>
+                  </button>
+                </div>
+                <input v-model="form.document_id" @blur="onDocBlur" class="form-input" placeholder="20-12345678-9" required />
               </div>
             </div>
             <div class="grid-2">
               <div class="form-group">
-                <label class="form-label">Email</label>
+                <label class="form-label">Condición frente al IVA</label>
+              <select v-model="form.iva_condition_id" class="form-select" required><option value="" disabled>Seleccionar condición</option><option value="5">Consumidor Final</option><option value="1">Responsable Inscripto</option><option value="6">Monotributista</option><option value="4">Exento</option></select>
+              <label class="form-label">Email</label>
                 <input v-model="form.email" class="form-input" type="email" placeholder="contacto@empresa.com" />
               </div>
               <div class="form-group">
@@ -224,6 +292,18 @@ function initials(name: string) {
             <div class="form-group">
               <label class="form-label">Dirección</label>
               <input v-model="form.address" class="form-input" placeholder="Av. Corrientes 1234, CABA" />
+            </div>
+            <div class="grid-2" style="background:rgba(255,255,255,0.02);border:1px solid var(--border);border-radius:var(--radius-sm);padding:0.75rem;margin-top:0.25rem;">
+              <div class="form-group">
+                <label class="form-label" style="font-size:0.8rem;">Percepción IIBB (%) (Opcional)</label>
+                <input v-model.number="form.iibb_alicuota" type="number" step="0.01" min="0" max="100" class="form-input" placeholder="Ej: 3.00" :disabled="form.iibb_exempt" />
+              </div>
+              <div class="form-group" style="display:flex;align-items:center;margin-top:1.5rem;">
+                <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;cursor:pointer;">
+                  <input type="checkbox" v-model="form.iibb_exempt" style="width:16px;height:16px;" />
+                  <span>Exento de Percepción IIBB</span>
+                </label>
+              </div>
             </div>
             <div class="flex gap-3" style="justify-content:flex-end;margin-top:0.5rem;">
               <button type="button" class="btn btn-ghost" @click="showModal = false">Cancelar</button>

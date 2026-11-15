@@ -5,6 +5,11 @@ import { resolve } from 'path'
 export default defineConfig({
   base: './',
   plugins: [vue()],
+  build: {
+    rollupOptions: {
+      input: { app: resolve(__dirname, 'index.html'), landing: resolve(__dirname, 'landing/index.html') },
+    },
+  },
   resolve: {
     alias: {
       '@': resolve(__dirname, './src'),

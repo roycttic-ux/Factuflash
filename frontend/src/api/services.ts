@@ -17,6 +17,9 @@ export const invoicesApi = {
   get: (id: number) => api.get(`/invoices/${id}`),
   create: (data: object) => api.post('/invoices', data),
   delete: (id: number) => api.delete(`/invoices/${id}`),
+  downloadPdf: (id: number) => api.get(`/invoices/${id}/pdf`, { responseType: 'blob' }),
+  exportExcel: (from?: string, to?: string) => api.get('/invoices/export/excel', { params: { from, to }, responseType: 'blob' }),
+  exportZip:   (from?: string, to?: string) => api.get('/invoices/export/zip',   { params: { from, to }, responseType: 'blob' }),
 }
 
 export const productsApi = {
@@ -40,6 +43,10 @@ export const productsApi = {
   applyInflation: (percentage: number, category: string = 'Todas') => api.post('/products/inflation', { percentage, category }),
 }
 
+export const padronApi = {
+  lookup: (cuit: string) => api.get(`/padron/${cuit}`),
+}
+
 export const customersApi = {
   list: () => api.get('/customers'),
   get: (id: number) => api.get(`/customers/${id}`),
@@ -54,9 +61,12 @@ export const settingsApi = {
   uploadLogo: (formData: FormData) => api.post('/settings/logo', formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
   }),
+  completeOnboarding: () => api.post('/settings/onboarding-complete'),
 }
 
 export const arcaApi = {
+  status: () => api.get('/arca/status'),
+  tributeTypes: () => api.get('/arca/tribute-types'),
   generateCsr: (cuit: string) => api.post('/arca/csr', { cuit }),
   uploadCert: (formData: FormData) => api.post('/arca/cert', formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
@@ -76,15 +86,17 @@ export const subscriptionApi = {
 }
 
 export const mpApi = {
+  paymentStatus: (id: number) => api.get(`/mp/invoices/${id}/status`),
   createPreference: (data: object) => api.post('/mp/preference', data),
   createPointIntent: (data: { device_id: string; amount: number; invoice_id: number }) => api.post('/mp/point-intent', data),
   createSubscription: (plan: string) => api.post('/mp/subscription-preference', { plan }),
 }
 
 export const posDevicesApi = {
+  confirm: (data: object) => api.post('/pos-devices/confirm', data),
   list: () => api.get('/pos-devices'),
   create: (data: object) => api.post('/pos-devices', data),
-  checkStatus: (externalId: string) => api.get(`/pos-devices/status/${externalId}`),
+  checkStatus: (externalId: string, invoiceId: number) => api.get(`/pos-devices/status/${encodeURIComponent(externalId)}`, { params: { invoice_id: invoiceId } }),
   delete: (id: number) => api.delete(`/pos-devices/${id}`),
 }
 

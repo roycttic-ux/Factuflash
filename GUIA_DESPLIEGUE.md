@@ -58,10 +58,10 @@ El script hace automáticamente:
 
 | Servicio | URL |
 |---|---|
-| Landing Page | http://TU_HOST_VPS/ |
-| Sistema (App) | http://TU_HOST_VPS/app/ |
-| API (base) | http://TU_HOST_VPS/api/v1/ |
-| Diagnósticos | http://TU_HOST_VPS/api/v1/diagnostics |
+ | Landing Page | http://TU_HOST_VPS/ |
+ | Sistema (App) | http://TU_HOST_VPS/app/ |
+ | API (base) | http://TU_HOST_VPS/api/v1/ |
+ | Diagnósticos | http://TU_HOST_VPS/api/v1/diagnostics |
 
 ---
 
@@ -118,6 +118,8 @@ DB_DATABASE=fy_facturacion
 DB_USERNAME=factuuser
 DB_PASSWORD=CAMBIAR_EN_LOCAL
 ```
+
+Reemplaza `TU_HOST_VPS` y `CAMBIAR_EN_LOCAL` por tus valores en la configuración privada del servidor. No publiques credenciales reales.
 
 ---
 

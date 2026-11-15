@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { invoicesApi, customersApi, productsApi, posDevicesApi, mpApi, settingsApi } from '@/api/services'
+import { invoicesApi, customersApi, productsApi, settingsApi, arcaApi } from '@/api/services'
+import { ANONYMOUS_CONSUMER_FINAL_LIMIT } from '@/utils/validators'
 
 const router = useRouter()
 const loading = ref(false)
@@ -13,14 +14,67 @@ const scannerCode = ref('')
 const scannerInputRef = ref<HTMLInputElement | null>(null)
 const lastScannedProduct = ref<any>(null)
 const scannerStatus = ref<'idle' | 'success' | 'error'>('idle')
-const posDevices = ref<any[]>([])
-const selectedPosId = ref<string>('')
-const isPayingWithPos = ref(false)
-const posStatus = ref('')
-let pollingInterval: any = null
 
 const settings = ref<any>({})
 const transferDetails = ref('')
+const manualReceipt = ref('')
+const manualAmount = ref(0)
+const manualConfirmed = ref(false)
+const submissionKey = ref(crypto.randomUUID())
+const isRetryable = ref(false)
+const pendingPayload = ref<any>(null)
+type ManualTribute = {
+  id: number
+  desc: string
+  jurisdiction: string
+  padron_reference: string
+  base_imp: string | number
+  alicuota: string | number
+  importe: string | number
+}
+const tributos = ref<ManualTribute[]>([])
+const tributeTypes = ref<{ id: number; description: string }[]>([])
+const loadingTributeTypes = ref(false)
+const tributeTypesError = ref('')
+const ivaRates: Record<number, number> = { 3: 0, 4: 10.5, 5: 21, 6: 27, 8: 5, 9: 2.5 }
+
+function formatARS(value: number) {
+  return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(value)
+}
+
+async function addTribute() {
+  if (loadingTributeTypes.value || loading.value || isRetryable.value || tributos.value.length >= 50) return
+  tributeTypesError.value = ''
+  if (!tributeTypes.value.length) {
+    loadingTributeTypes.value = true
+    try {
+      const res = await arcaApi.tributeTypes()
+      tributeTypes.value = (res.data.tribute_types || []).map((type: any) => ({ id: Number(type.id), description: type.description }))
+      if (!tributeTypes.value.length) throw new Error('Catálogo vacío')
+    } catch {
+      tributeTypesError.value = 'No se pudo cargar el catálogo de tributos de ARCA. Reintentá para agregar un tributo; podés emitir una factura sin tributos si corresponde.'
+      return
+    } finally {
+      loadingTributeTypes.value = false
+    }
+  }
+  const type = tributeTypes.value.find(t => t.id === 7) || tributeTypes.value.find(t => t.id === 2) || tributeTypes.value[0]!
+  tributos.value.push({
+    id: type.id,
+    desc: type.id === 7 ? 'Percepción de Ingresos Brutos' : type.description.slice(0, 80),
+    jurisdiction: settings.value.fiscal_jurisdiction || '',
+    padron_reference: '',
+    base_imp: '',
+    alicuota: settings.value.default_iibb_alicuota ?? '',
+    importe: '',
+  })
+}
+
+function validAmount(value: string | number, optional = false) {
+  if (value === '') return optional
+  const amount = Number(value)
+  return Number.isFinite(amount) && amount >= 0 && Math.abs(amount * 100 - Math.round(amount * 100)) < 0.000001
+}
 
 const arcaConnected = ref(false)
 
@@ -47,23 +101,23 @@ watch(() => form.value.payment_method, (newVal) => {
 })
 
 onMounted(async () => {
-  const [custRes, prodRes, posRes, settingsRes] = await Promise.all([
-    customersApi.list(),
-    productsApi.list(),
-    posDevicesApi.list(),
-    settingsApi.get()
-  ])
-  customers.value = custRes.data.customers
-  products.value = prodRes.data.products
-  posDevices.value = posRes.data.devices
-  settings.value = settingsRes.data.settings || {}
-  arcaConnected.value = !!settings.value.arca_connected
-
-  if (window.innerWidth > 768) {
-    setTimeout(() => scannerInputRef.value?.focus(), 500)
+  try {
+    const [custRes, prodRes, settingsRes] = await Promise.all([
+      customersApi.list(),
+      productsApi.list(),
+      settingsApi.get(),
+    ])
+    customers.value = custRes.data.recipients || custRes.data.customers || []
+    products.value = prodRes.data.products
+    settings.value = settingsRes.data.settings || {}
+    arcaConnected.value = !!settings.value.arca_connected
+    if (window.innerWidth > 768) {
+      setTimeout(() => scannerInputRef.value?.focus(), 500)
+    }
+  } catch {
+    error.value = 'No se pudieron cargar los datos. Recargá la página para intentar de nuevo.'
   }
 })
-
 function addItem() {
   form.value.items.push({ product_id: '', quantity: 1, variant_index: null })
 }
@@ -81,12 +135,37 @@ function getProduct(id: string) {
   return products.value.find(p => p.id == id)
 }
 
-const totalARS = computed(() =>
-  form.value.items.reduce((acc, item) => {
-    const p = getProduct(item.product_id)
-    return acc + (p ? Number(p.cost_usd) * item.quantity : 0)
-  }, 0)
-)
+const fiscalPreview = computed(() => {
+  const totals = { net: 0, vat: 0, exempt: 0, untaxed: 0, gross: 0 }
+  const registered = settings.value.tax_condition === 'Responsable Inscripto'
+  for (const item of form.value.items) {
+    const product = getProduct(item.product_id)
+    if (!product) continue
+    const gross = Math.round(Number(product.cost_usd) * Number(item.quantity) * 100)
+    if (!Number.isFinite(gross)) continue
+    totals.gross += gross
+    const ivaId = Number(product.iva_id)
+    if (!registered) totals.net += gross
+    else if (ivaId === 1) totals.untaxed += gross
+    else if (ivaId === 2) totals.exempt += gross
+    else if (ivaRates[ivaId] !== undefined) {
+      const net = Math.round(gross / (1 + ivaRates[ivaId] / 100))
+      totals.net += net
+      totals.vat += gross - net
+    } else totals.net += gross
+  }
+  return Object.fromEntries(Object.entries(totals).map(([key, cents]) => [key, cents / 100])) as typeof totals
+})
+const tributosTotal = computed(() => tributos.value.reduce((sum, tribute) => sum + (validAmount(tribute.importe) ? Math.round(Number(tribute.importe) * 100) : 0), 0) / 100)
+const totalARS = computed(() => Math.round((fiscalPreview.value.gross + tributosTotal.value) * 100) / 100)
+
+const hasExternalPayment = computed(() => form.value.is_multiple_payment
+  ? form.value.payments.some(p => ['card', 'mp'].includes(p.payment_method))
+  : ['card', 'mp'].includes(form.value.payment_method))
+watch(totalARS, value => { manualAmount.value = value })
+watch([form, manualReceipt, manualAmount, tributos], () => {
+  manualConfirmed.value = false
+}, { deep: true })
 
 const totalPayments = computed(() => 
   form.value.payments.reduce((acc, p) => acc + (p.amount || 0), 0)
@@ -199,92 +278,69 @@ function refocusScanner() {
 window.addEventListener('click', refocusScanner)
 onUnmounted(() => window.removeEventListener('click', refocusScanner))
 
-async function triggerPosPayment() {
-  const device = posDevices.value.find(d => String(d.id) === String(selectedPosId.value))
-  if (!device) return
-
-  isPayingWithPos.value = true
-  posStatus.value = 'Enviando orden al dispositivo...'
-
-  try {
-    if (device.type === 'mercadopago_point') {
-      await mpApi.createPointIntent({
-        device_id: device.external_id,
-        amount: totalARS.value,
-        invoice_id: 0
-      })
-      posStatus.value = 'Esperando confirmación en el dispositivo...'
-    } else {
-      posStatus.value = 'Esperando señal del Postnet...'
-    }
-    
-    startPolling(device.external_id)
-  } catch (e: any) {
-    error.value = e.response?.data?.error ?? 'Error al conectar con el POS'
-    isPayingWithPos.value = false
-  }
-}
-
-function startPolling(externalId: string) {
-  if (pollingInterval) clearInterval(pollingInterval)
-  
-  pollingInterval = setInterval(async () => {
-    try {
-      const res = await posDevicesApi.checkStatus(externalId)
-      if (res.data.status === 'approved') {
-        posStatus.value = '✅ ¡Pago aprobado! Emitiendo factura...'
-        stopPolling()
-        // Auto-submit con ARCA activado
-        await submit()
-      }
-    } catch (e) {
-      console.error('Polling error', e)
-    }
-  }, 3000)
-}
-
-function stopPolling() {
-  if (pollingInterval) {
-    clearInterval(pollingInterval)
-    pollingInterval = null
-  }
-  isPayingWithPos.value = false
-}
-
-import { onUnmounted } from 'vue'
-onUnmounted(() => stopPolling())
-
 async function submit() {
+  if (loading.value || success.value) return
   error.value = ''
   if (!arcaConnected.value) { error.value = 'Debés vincular tu cuenta con ARCA antes de emitir facturas. Andá a Configuración → AFIP / ARCA.'; return }
   if (form.value.items.some(i => !i.product_id)) { error.value = 'Completá todos los productos'; return }
+  if (tributos.value.some(t => !tributeTypes.value.some(type => type.id === Number(t.id)) || !t.desc.trim() || !t.jurisdiction.trim() || !validAmount(t.importe) || !validAmount(t.base_imp, true) || !validAmount(t.alicuota, true) || Number(t.alicuota) > 999.99)) {
+    error.value = 'Revisá los tributos: seleccioná un tipo, completá la descripción, la jurisdicción y un importe numérico no negativo con hasta dos decimales. La base y la alícuota son opcionales.'
+    return
+  }
+  if (!form.value.recipient_id && totalARS.value >= ANONYMOUS_CONSUMER_FINAL_LIMIT) {
+    error.value = `Por disposición de ARCA, las ventas superiores a $${ANONYMOUS_CONSUMER_FINAL_LIMIT.toLocaleString('es-AR')} a Consumidor Final deben identificar obligatoriamente al cliente con DNI o CUIT.`
+    return
+  }
+  const payments = form.value.is_multiple_payment
+    ? form.value.payments.map(p => ({ payment_method: p.payment_method, amount: Number(p.amount), details: p.details, reference: ['card', 'mp'].includes(p.payment_method) ? p.details.trim() : undefined }))
+    : [{ payment_method: form.value.payment_method, amount: hasExternalPayment.value ? Number(manualAmount.value) : totalARS.value, details: transferDetails.value, reference: hasExternalPayment.value ? manualReceipt.value.trim() : undefined }]
+  if (Math.round(payments.reduce((sum, payment) => sum + payment.amount, 0) * 100) !== Math.round(totalARS.value * 100)) {
+    error.value = 'El importe cobrado debe coincidir con el total de la factura.'; return
+  }
+  if (hasExternalPayment.value && (!manualConfirmed.value || payments.some(p => ['card', 'mp'].includes(p.payment_method) && !p.reference))) {
+    error.value = 'Ingresá el comprobante de cada cobro y confirmá que fue aprobado.'; return
+  }
 
   loading.value = true
   try {
     const payload = {
       recipient_id: form.value.recipient_id ? Number(form.value.recipient_id) : null,
       notify_afip: true,
+      submission_key: submissionKey.value,
+      manual_payment_confirmed: hasExternalPayment.value && manualConfirmed.value,
       payment_method: form.value.is_multiple_payment ? form.value.payments[0].payment_method : form.value.payment_method,
       items: form.value.items.map(i => ({ 
         product_id: Number(i.product_id), 
         quantity: Number(i.quantity),
         variant_index: i.variant_index !== null ? Number(i.variant_index) : null
       })),
-      payments: form.value.is_multiple_payment ? form.value.payments.map(p => ({
-        payment_method: p.payment_method,
-        amount: Number(p.amount),
-        details: p.details
-      })) : (form.value.payment_method === 'transfer' && transferDetails.value ? [{
-        payment_method: 'transfer',
-        amount: Number(totalARS.value),
-        details: transferDetails.value
-      }] : null)
+      payments,
+      tributos: tributos.value.map(t => ({
+        id: Number(t.id),
+        desc: t.desc.trim(),
+        jurisdiction: t.jurisdiction.trim() || null,
+        padron_reference: t.padron_reference.trim() || null,
+        base_imp: t.base_imp === '' ? null : Number(t.base_imp),
+        alicuota: t.alicuota === '' ? null : Number(t.alicuota),
+        importe: Number(t.importe),
+      })),
     }
-    const res = await invoicesApi.create(payload)
+    if (pendingPayload.value && !isRetryable.value && JSON.stringify({ ...pendingPayload.value, submission_key: '' }) !== JSON.stringify({ ...payload, submission_key: '' })) {
+      submissionKey.value = crypto.randomUUID()
+      payload.submission_key = submissionKey.value
+    }
+    if (!isRetryable.value) pendingPayload.value = structuredClone(payload)
+    const res = await invoicesApi.create(pendingPayload.value)
     success.value = true
     setTimeout(() => router.push(`/facturas/${res.data.invoice.id}`), 1200)
   } catch (e: any) {
-    error.value = e?.response?.data?.error ?? 'Error al crear la factura'
+    const data = e?.response?.data
+    error.value = data?.error || Object.values(data?.errors || {}).flat().join(' ') || 'Error al crear la factura'
+    isRetryable.value = !!data?.retryable || !e?.response || [408, 429].includes(e.response?.status) || e.response?.status >= 500
+    if (data?.submission_key) {
+      submissionKey.value = data.submission_key
+      if (pendingPayload.value) pendingPayload.value.submission_key = data.submission_key
+    }
   } finally {
     loading.value = false
   }
@@ -318,7 +374,7 @@ function copyToClipboard(text: string, label: string) {
 
     <form @submit.prevent="submit" class="invoice-grid">
       <!-- Left: recipient + items -->
-      <div class="flex flex-col gap-4">
+      <fieldset class="invoice-fields flex flex-col gap-4" :disabled="loading || isRetryable || success">
         <!-- Customer -->
         <div class="card">
           <h2 class="section-title" style="margin-bottom:1rem;">Cliente (Opcional)</h2>
@@ -327,9 +383,12 @@ function copyToClipboard(text: string, label: string) {
             <select v-model="form.recipient_id" class="form-select">
               <option value="">— Consumidor Final (Sin Cliente) —</option>
               <option v-for="c in customers" :key="c.id" :value="c.id">
-                {{ c.name }} &mdash; CUIT {{ c.cuit }}
+                {{ c.name }} &mdash; Documento {{ c.document_id }}
               </option>
             </select>
+            <div v-if="!form.recipient_id && totalARS >= ANONYMOUS_CONSUMER_FINAL_LIMIT" style="margin-top:0.75rem;padding:0.75rem 1rem;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);border-radius:8px;color:#ef4444;font-size:0.85rem;line-height:1.4;">
+              ⚠️ <strong>Identificación obligatoria por ARCA:</strong> Esta venta supera los ${{ ANONYMOUS_CONSUMER_FINAL_LIMIT.toLocaleString('es-AR') }}. Debés seleccionar o registrar un cliente con DNI o CUIT.
+            </div>
           </div>
         </div>
 
@@ -409,6 +468,28 @@ function copyToClipboard(text: string, label: string) {
           </div>
         </div>
 
+        <div class="card">
+          <div class="flex items-center justify-between" style="gap:1rem;margin-bottom:0.75rem;">
+            <h2 class="section-title">Percepciones y tributos <small class="text-muted">(opcional)</small></h2>
+            <button type="button" class="btn btn-ghost btn-sm" :disabled="loadingTributeTypes || tributos.length >= 50" @click="addTribute">{{ loadingTributeTypes ? 'Cargando…' : 'Agregar tributo' }}</button>
+          </div>
+          <p class="text-muted tribute-help">Cargá los tributos que correspondan a esta operación según tu contador. El importe se ingresa manualmente y se suma al total; la alícuota sugerida no calcula ni aplica percepciones automáticamente.</p>
+          <p v-if="settings.default_iibb_alicuota !== null && settings.default_iibb_alicuota !== undefined && settings.default_iibb_alicuota !== ''" class="text-muted tribute-help">Alícuota de referencia del negocio: {{ settings.default_iibb_alicuota }}%<template v-if="settings.fiscal_jurisdiction"> · {{ settings.fiscal_jurisdiction }}</template>.</p>
+          <p v-if="tributeTypesError" class="form-error" role="alert">{{ tributeTypesError }}</p>
+          <div v-for="(tribute, index) in tributos" :key="index" class="tribute-editor">
+            <div class="flex items-center justify-between"><strong>Tributo {{ index + 1 }}</strong><button type="button" class="btn btn-danger btn-sm" @click="tributos.splice(index, 1)">Quitar</button></div>
+            <div class="tribute-fields">
+              <div class="form-group"><label class="form-label" :for="`tribute-type-${index}`">Tipo de tributo</label><select :id="`tribute-type-${index}`" v-model.number="tribute.id" class="form-select" required><option v-for="type in tributeTypes" :key="type.id" :value="type.id">{{ type.description }}</option></select></div>
+              <div class="form-group"><label class="form-label" :for="`tribute-jurisdiction-${index}`">Jurisdicción</label><input :id="`tribute-jurisdiction-${index}`" v-model="tribute.jurisdiction" class="form-input" maxlength="100" required placeholder="Provincia, municipio o nacional" /></div>
+              <div class="form-group"><label class="form-label" :for="`tribute-description-${index}`">Descripción</label><input :id="`tribute-description-${index}`" v-model="tribute.desc" class="form-input" maxlength="80" required /></div>
+              <div class="form-group"><label class="form-label" :for="`tribute-padron-${index}`">Padrón o referencia (opcional)</label><input :id="`tribute-padron-${index}`" v-model="tribute.padron_reference" class="form-input" maxlength="150" /></div>
+              <div class="form-group"><label class="form-label" :for="`tribute-base-${index}`">Base imponible (opcional)</label><input :id="`tribute-base-${index}`" v-model="tribute.base_imp" class="form-input" type="number" min="0" step="0.01" /></div>
+              <div class="form-group"><label class="form-label" :for="`tribute-rate-${index}`">Alícuota % (opcional)</label><input :id="`tribute-rate-${index}`" v-model="tribute.alicuota" class="form-input" type="number" min="0" max="999.99" step="0.01" /></div>
+              <div class="form-group"><label class="form-label" :for="`tribute-amount-${index}`">Importe a sumar</label><input :id="`tribute-amount-${index}`" v-model="tribute.importe" class="form-input" type="number" min="0" step="0.01" required placeholder="Ingresá el importe" /></div>
+            </div>
+          </div>
+        </div>
+
         <!-- Payment Method -->
         <div class="card">
           <h2 class="section-title" style="margin-bottom:1rem;">Método de Pago</h2>
@@ -421,7 +502,7 @@ function copyToClipboard(text: string, label: string) {
             <label class="p-method" :class="{ active: form.payment_method === 'card' }">
               <input type="radio" v-model="form.payment_method" value="card" />
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
-              Tarjeta / POS
+              Tarjeta / Posnet
             </label>
             <label class="p-method" :class="{ active: form.payment_method === 'transfer' }">
               <input type="radio" v-model="form.payment_method" value="transfer" />
@@ -430,33 +511,16 @@ function copyToClipboard(text: string, label: string) {
             </label>
           </div>
 
-          <!-- POS Selection -->
-          <div v-if="form.payment_method === 'card' && posDevices.length && !form.is_multiple_payment" class="pos-integration-box mt-3">
-            <div class="flex items-center gap-3">
-              <select v-model="selectedPosId" class="form-select flex-1">
-                <option value="">— Elegir Postnet Integrado —</option>
-                <option v-for="d in posDevices" :key="d.id" :value="d.id">{{ d.name }} ({{ d.type === 'mercadopago_point' ? 'MP Point' : 'Tradicional' }})</option>
-              </select>
-              <button 
-                type="button" 
-                class="btn btn-primary btn-sm" 
-                :disabled="!selectedPosId || isPayingWithPos"
-                @click="triggerPosPayment"
-              >
-                {{ isPayingWithPos ? 'Esperando...' : 'Cobrar en POS' }}
-              </button>
-            </div>
-            <div v-if="isPayingWithPos" class="pos-status-msg mt-2 flex items-center justify-between gap-3 p-2 bg-zinc-900 border border-zinc-800 rounded-lg">
-              <div class="flex items-center gap-2 text-zinc-300">
-                <span class="spinner spinner-xs"></span>
-                <span>{{ posStatus }}</span>
-              </div>
-              <button type="button" class="btn btn-danger btn-xs px-2 py-1 font-bold text-xs" @click="stopPolling" style="background:#ef4444; border-color:#ef4444; font-weight:800; font-size:11px;">
-                Cancelar
-              </button>
-            </div>
+          <p v-if="hasExternalPayment" class="pos-integration-box mt-3" role="note">
+            Cobrá con tu posnet y cargá aquí el comprobante aprobado. FactuFlash registra el pago y emite la factura; no envía un nuevo cobro al dispositivo.
+          </p>
+          <div v-if="hasExternalPayment && !form.is_multiple_payment" class="manual-payment-fields mt-3">
+            <label class="form-label" for="manual-amount">Importe cobrado en el posnet</label>
+            <input id="manual-amount" v-model.number="manualAmount" type="number" min="0.01" step="0.01" class="form-input" required />
+            <label class="form-label" for="manual-receipt">Comprobante / operación</label>
+            <input id="manual-receipt" v-model="manualReceipt" class="form-input" maxlength="150" placeholder="Ej: Payway caja 1 · 20/10 · lote 5 · operación 32" required />
+            <small>Incluí proveedor, fecha y lote si el número de operación se repite.</small>
           </div>
-
           <!-- Transfer Details Box -->
           <div v-if="form.payment_method === 'transfer' && !form.is_multiple_payment" class="transfer-integration-box mt-3">
             <div v-if="settings.bank_name || settings.bank_alias || settings.bank_cbu || settings.bank_holder" class="bank-details-card mb-3 p-3 bg-zinc-900/60 border border-zinc-800 rounded-lg">
@@ -508,9 +572,9 @@ function copyToClipboard(text: string, label: string) {
               </select>
               <div class="input-with-symbol flex-1">
                 <span class="symbol">$</span>
-                <input v-model.number="p.amount" type="number" class="form-input" placeholder="Monto" />
+                <input v-model.number="p.amount" type="number" min="0.01" step="0.01" required class="form-input" :aria-label="`Importe del pago ${pIdx + 1}`" placeholder="Monto" />
               </div>
-              <input v-model="p.details" class="form-input flex-1" placeholder="Detalles (opcional)" />
+              <input v-model="p.details" class="form-input flex-1" :maxlength="['card', 'mp'].includes(p.payment_method) ? 150 : 200" :required="['card', 'mp'].includes(p.payment_method)" :aria-label="`Referencia del pago ${pIdx + 1}`" :placeholder="['card', 'mp'].includes(p.payment_method) ? 'Comprobante: proveedor, fecha, lote y operación' : 'Detalles (opcional)'" />
               <button type="button" class="btn btn-danger btn-sm btn-icon" @click="removePayment(pIdx)" v-if="form.payments.length > 1">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
               </button>
@@ -531,6 +595,11 @@ function copyToClipboard(text: string, label: string) {
               <span v-else class="flex items-center gap-1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> Cubierto</span>
             </div>
           </div>
+
+          <label v-if="hasExternalPayment" class="manual-confirmation mt-3">
+            <input v-model="manualConfirmed" type="checkbox" required />
+            Verifiqué que los cobros del posnet están aprobados y que sus importes coinciden.
+          </label>
 
           <div class="mt-4 flex justify-end">
             <button type="button" class="btn btn-sm btn-ghost text-xs" @click="toggleMultiplePayment">
@@ -563,12 +632,26 @@ function copyToClipboard(text: string, label: string) {
             </div>
           </div>
         </div>
-      </div>
+      </fieldset>
 
       <!-- Right: summary -->
       <div class="flex flex-col gap-4">
         <div class="card summary-card">
-          <h2 class="section-title" style="margin-bottom:1.25rem;">Resumen</h2>
+          <h2 class="section-title" style="margin-bottom:1.25rem;">Vista previa del total</h2>
+          <div class="summary-line"><span class="text-muted">Neto</span><span>{{ formatARS(fiscalPreview.net) }}</span></div>
+          <div v-if="fiscalPreview.exempt" class="summary-line"><span class="text-muted">Exento</span><span>{{ formatARS(fiscalPreview.exempt) }}</span></div>
+          <div v-if="fiscalPreview.untaxed" class="summary-line"><span class="text-muted">No gravado</span><span>{{ formatARS(fiscalPreview.untaxed) }}</span></div>
+          <div class="summary-line"><span class="text-muted">IVA por producto</span><span>{{ formatARS(fiscalPreview.vat) }}</span></div>
+          <div class="summary-line"><span class="text-muted">Tributos</span><span>{{ formatARS(tributosTotal) }}</span></div>
+          <div v-for="(tribute, index) in tributos" :key="index" class="tribute-preview">
+            <strong>{{ tribute.desc || 'Tributo sin descripción' }}</strong>
+            <div>{{ tributeTypes.find(type => type.id === Number(tribute.id))?.description }}<template v-if="tribute.jurisdiction"> · {{ tribute.jurisdiction }}</template></div>
+            <div v-if="tribute.alicuota !== ''">Alícuota: {{ tribute.alicuota }}%</div>
+            <div v-if="tribute.base_imp !== ''">Base: {{ formatARS(Number(tribute.base_imp)) }}</div>
+            <div v-if="tribute.padron_reference">Padrón: {{ tribute.padron_reference }}</div>
+            <div>{{ validAmount(tribute.importe) ? formatARS(Number(tribute.importe)) : 'Importe pendiente' }}</div>
+          </div>
+          <div class="summary-divider"></div>
 
           <div class="summary-line">
             <span class="text-muted">Total</span>
@@ -591,13 +674,19 @@ function copyToClipboard(text: string, label: string) {
 
           <Transition name="fade">
             <div v-if="error" class="form-error">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-              {{ error }}
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <div style="flex:1;">
+                <div>{{ error }}</div>
+                <div v-if="isRetryable" style="margin-top:0.35rem;font-size:0.75rem;opacity:0.95;color:var(--text-primary);line-height:1.3;">
+                  Ocurrió un error temporal. Reintentá con los mismos datos para consultar o completar esta emisión de forma segura, sin duplicarla. Los campos permanecen bloqueados hasta resolverla.
+                </div>
+              </div>
             </div>
           </Transition>
 
-          <button type="submit" class="btn btn-primary w-full" :disabled="loading || !arcaConnected" style="justify-content:center;margin-top:1rem;">
+          <button type="submit" class="btn btn-primary w-full" :disabled="loading || loadingTributeTypes || !arcaConnected || success" style="justify-content:center;margin-top:1rem;">
             <span v-if="loading" class="spinner"></span>
+            <span v-else-if="isRetryable">🔄 Reintentar Emisión Segura</span>
             <span v-else>Emitir Factura</span>
           </button>
         </div>
@@ -607,6 +696,12 @@ function copyToClipboard(text: string, label: string) {
 </template>
 
 <style scoped>
+.invoice-fields { border: 0; margin: 0; padding: 0; min-width: 0; }
+.tribute-help { font-size: 0.8rem; line-height: 1.5; margin-bottom: 0.75rem; }
+.tribute-editor { border: 1px solid var(--border); border-radius: 10px; padding: 1rem; margin-top: 1rem; }
+.tribute-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; margin-top: 0.75rem; }
+.tribute-preview { font-size: 0.78rem; line-height: 1.5; border-top: 1px solid var(--border); padding: 0.6rem 0; overflow-wrap: anywhere; }
+@media (max-width: 600px) { .tribute-fields { grid-template-columns: 1fr; } }
 .invoice-grid {
   display: grid;
   grid-template-columns: 1fr 320px;
@@ -871,6 +966,10 @@ function copyToClipboard(text: string, label: string) {
   border-radius: 12px;
   padding: 1rem;
 }
+.manual-payment-fields { display: grid; gap: .5rem; }
+.manual-payment-fields small { color: var(--text-muted); }
+.manual-confirmation { display: flex; align-items: flex-start; gap: .6rem; font-size: .9rem; line-height: 1.5; }
+@media (max-width: 600px) { .payment-row { flex-wrap: wrap; } .payment-row > .form-input { flex-basis: 100%; } }
 .pos-status-msg {
   font-size: 0.8rem;
   font-weight: 600;

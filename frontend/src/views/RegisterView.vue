@@ -1,22 +1,28 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { authApi } from '@/api/services'
 import AppLogo from '@/components/AppLogo.vue'
+import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
-const plan = (route.query.plan as string) || 'trial'
+const requestedPlan = route.query.plan === 'yearly' ? 'annual' : route.query.plan
+const plan = ['monthly', 'annual'].includes(String(requestedPlan)) ? String(requestedPlan) : 'trial'
+const auth = useAuthStore()
 const router = useRouter()
 const form = ref({
   name: '',
   email: '',
   password: '',
   company_name: '',
-  plan_status: plan === 'trial' ? 'trial' : 'pending_payment'
 })
 const error = ref('')
 const loading = ref(false)
 const captchaToken = ref('')
+const monthlyInvoices = ref<number | null>(null)
+const simultaneousRegisters = ref<number | null>(null)
+const needsPersonalizedPlan = computed(() => Number(monthlyInvoices.value) > 1000 || Number(simultaneousRegisters.value) > 3)
+const contactUrl = computed(() => 'https://wa.me/5492954326436?text=' + encodeURIComponent(`Hola, quiero una solución personalizada de FactuFlash. Emito aproximadamente ${monthlyInvoices.value ?? 'sin definir'} facturas por mes y tengo ${simultaneousRegisters.value ?? 'sin definir'} cajas simultáneas.`))
 
 const turnstileKey = import.meta.env.DEV ? '1x00000000000000000000AA' : '0x4AAAAAADAO6Zi2lqnvj_gb'
 const homeUrl = import.meta.env.DEV ? '/landing/' : 'https://factuflash.com.ar'
@@ -38,6 +44,11 @@ onMounted(() => {
 })
 
 async function handleRegister() {
+  if (!Number.isInteger(monthlyInvoices.value) || Number(monthlyInvoices.value) < 0 || !Number.isInteger(simultaneousRegisters.value) || Number(simultaneousRegisters.value) < 1) {
+    error.value = 'Indicá las facturas mensuales y al menos una caja, con números enteros.'
+    return
+  }
+  if (needsPersonalizedPlan.value) return
   if (!form.value.name || !form.value.email || !form.value.password) {
     error.value = 'Completá los campos obligatorios'
     return
@@ -51,10 +62,14 @@ async function handleRegister() {
   try {
     const res = await authApi.register({
       ...form.value,
+      expected_monthly_invoices: String(monthlyInvoices.value),
+      simultaneous_registers: String(simultaneousRegisters.value),
       captcha_token: captchaToken.value
     })
     localStorage.setItem('token', res.data.token)
-    router.push('/dashboard')
+    auth.token = res.data.token
+    auth.user = res.data.user
+    await router.push(plan === 'trial' ? '/dashboard' : { name: 'suscripcion', query: { plan } })
   } catch (e: any) {
     error.value = e?.response?.data?.message ?? 'Error al registrarse.'
   } finally {
@@ -88,13 +103,27 @@ async function handleRegister() {
 
       <div class="login-box card-glass">
         <h2 class="login-title text-center">
-          {{ plan === 'monthly' ? 'Plan Mensual' : plan === 'yearly' ? 'Plan Anual' : 'Probá 15 días gratis' }}
+          {{ plan === 'monthly' ? 'Plan Mensual' : plan === 'annual' ? 'Plan Anual' : 'Probá 7 días gratis' }}
         </h2>
         <p class="login-sub text-center">
           {{ plan === 'trial' ? 'Empezá a facturar hoy mismo sin compromiso.' : 'Completá tus datos para activar tu suscripción.' }}
         </p>
 
-        <form @submit.prevent="handleRegister" class="login-form">
+        <div class="form-group" style="margin-bottom:1rem">
+          <label class="form-label" for="monthly-invoices">¿Cuántas facturas emitís por mes aproximadamente?</label>
+          <input id="monthly-invoices" v-model.number="monthlyInvoices" type="number" min="0" step="1" class="form-input" placeholder="Por ejemplo, 200" />
+        </div>
+        <div class="form-group" style="margin-bottom:1rem">
+          <label class="form-label" for="register-count">¿Cuántas cajas facturan al mismo tiempo?</label>
+          <input id="register-count" v-model.number="simultaneousRegisters" type="number" min="1" step="1" class="form-input" placeholder="Por ejemplo, 2" />
+        </div>
+        <div v-if="needsPersonalizedPlan" class="login-form">
+          <h3>Una solución para tu volumen de ventas</h3>
+          <p>Si emitís más de 1.000 facturas por mes o usás más de 3 cajas simultáneas, hablemos para evaluar tu operación y ofrecerte una solución personalizada.</p>
+          <a :href="contactUrl" target="_blank" rel="noopener noreferrer" class="btn btn-primary">Consultar por WhatsApp</a>
+          <p>Contacto: 2954 326436</p>
+        </div>
+        <form v-show="!needsPersonalizedPlan" @submit.prevent="handleRegister" class="login-form">
           <div class="form-group">
             <label class="form-label">Tu nombre completo</label>
             <input v-model="form.name" type="text" class="form-input" placeholder="Ej: Juan Pérez" autocomplete="name" />

@@ -4,295 +4,199 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\Subscription;
+use App\Services\SubscriptionBilling;
+use App\Services\SubscriptionPlans;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class SubscriptionController extends Controller
 {
-    public const PLAN_MONTHLY = 'monthly';
-    public const PLAN_ANNUAL = 'annual';
-
-    public const PRICES = [
-        self::PLAN_MONTHLY => [
-            'name' => 'Plan Mensual',
-            'amount' => 35000,
-            'currency' => 'ARS',
-            'frequency' => 1,
-            'frequency_unit' => 'months',
-        ],
-        self::PLAN_ANNUAL => [
-            'name' => 'Plan Anual',
-            'amount' => 320000,
-            'currency' => 'ARS',
-            'frequency' => 12,
-            'frequency_unit' => 'months',
-        ],
-    ];
-
-    /**
-     * Obtiene el token de Mercado Pago según el entorno.
-     * En producción usa MP_ACCESS_TOKEN, en desarrollo usa MP_SANDBOX_TOKEN si está definido.
-     */
-    private function getMpToken(): ?string
-    {
-        return config('services.mercadopago.token');
-    }
-
-    private function verifyTurnstile(?string $token): bool
-    {
-        if (empty($token)) return true; // Si no hay token, dejamos pasar (ej: login sin captcha aún)
-
-        try {
-            $secret = env('TURNSTILE_SECRET_KEY');
-
-            if (empty($secret)) return true;
-
-            $response = Http::timeout(5)->asForm()->post('https://challenges.cloudflare.com/turnstile/v0/siteverify', [
-                'secret' => $secret,
-                'response' => $token,
-                'remoteip' => request()->ip(),
-            ]);
-
-            // Aquí podrías validar $response->json()['success'] pero lo dejamos permisivo por ahora
-            return true;
-        } catch (\Exception $e) {
-            \Log::error('Turnstile verification error: ' . $e->getMessage());
-            return true; // Fallback: allow request on network error
-        }
-    }
-
     public function plans(): JsonResponse
     {
-        $features = [
-            'Facturas ilimitadas',
-            'Productos y Stock ilimitado',
-            'Integración ARCA (AFIP) + CAE',
-            'Mercado Pago Checkouts',
-            'Soporte prioritario WhatsApp',
-            'Dashboard en tiempo real',
-            'Reportes y Exportación',
-        ];
-
-        return response()->json([
-            'monthly' => [
-                'id' => self::PLAN_MONTHLY,
-                'name' => 'Plan Mensual',
-                'price' => 35000,
-                'price_formatted' => '$35.000',
-                'period' => 'mes',
-                'features' => $features,
-            ],
-            'annual' => [
-                'id' => self::PLAN_ANNUAL,
-                'name' => 'Plan Anual',
-                'price' => 320000,
-                'price_formatted' => '$320.000',
-                'period' => 'año',
-                'savings' => '$100.000 de ahorro',
-                'features' => $features,
-            ],
-        ]);
+        $features = ['Facturas ilimitadas', 'Productos y Stock ilimitado', 'Integración ARCA (AFIP) + CAE',
+            'Cobros con posnet registrados manualmente', 'Soporte prioritario WhatsApp', 'Dashboard en tiempo real', 'Reportes y Exportación'];
+        $plans = [];
+        foreach (SubscriptionPlans::PLANS as $id => $plan) {
+            $plans[$id] = [
+                'id' => $id, 'name' => $plan['name'], 'price' => $plan['amount'],
+                'price_formatted' => '$' . number_format($plan['amount'], 0, ',', '.'),
+                'period' => $plan['period'], 'features' => $features,
+            ];
+        }
+        return response()->json($plans);
     }
 
     public function createCheckout(Request $request): JsonResponse
     {
+        $validated = $request->validate(['plan' => 'required|in:monthly,annual']);
+        abort_if($request->user()->owner_id, 403, 'Solo el titular puede contratar una suscripción.');
+        $token = config('services.mercadopago.token');
+        if (!$token) return response()->json(['error' => 'El cobro de FactuFlash no está configurado. Contactá a soporte.'], 503);
+
+        $lock = Cache::lock('subscription-checkout:' . $request->user()->id, 60);
+        if (!$lock->get()) return response()->json(['error' => 'Ya hay un pago en preparación. Intentá nuevamente en unos segundos.'], 409);
         try {
-            $request->validate([
-                'plan' => 'required|in:monthly,annual',
-            ]);
-
             $user = $request->user();
-
-            // Get Mercado Pago token appropriate for environment
-            $mpToken = $this->getMpToken();
-            if (!$mpToken) {
-                return response()->json(['error' => 'Token de Mercado Pago no configurado.'], 500);
-            }
-
-            $plan = self::PRICES[$request->plan];
-            $planName = $plan['name'];
-            $amount = $plan['amount'];
-
-            // Datos para Suscripción Recurrente (Pre‑approval)
-            $preapprovalData = [
-                'reason' => "FactuFlash - {$planName}",
-                'external_reference' => "{$user->id}-{$request->plan}",
-                'payer_email' => $user->email,
-                'auto_recurring' => [
-                    'frequency' => $plan['frequency'],
-                    'frequency_type' => 'months',
-                    'transaction_amount' => (float) $amount,
-                    'currency_id' => 'ARS',
-                ],
-                'back_url' => url('/#/subscription-success?plan=' . $request->plan),
-                'notification_url' => route('subscription.webhook'),
-                'status' => 'pending',
-            ];
-
-            $response = Http::timeout(15)
-                ->withToken($mpToken)
-                ->post('https://api.mercadopago.com/preapproval', $preapprovalData);
-
-            if ($response->failed()) {
-                $errorData = $response->json();
-                Log::error('MP subscription error', [
-                    'status' => $response->status(),
-                    'body' => $errorData,
-                    'sent_data' => $preapprovalData
-                ]);
-                
-                $mpMsg = $errorData['message'] ?? $errorData['error'] ?? 'Error desconocido';
-                
-                // Si es un error de email igual al collector
-                if (str_contains(strtolower($mpMsg), 'collector') || str_contains(strtolower($mpMsg), 'payer.email')) {
-                    $mpMsg = "No podés usar el mismo email de tu cuenta de Mercado Pago para suscribirte. Usá un email distinto para el usuario o probá con otro navegador.";
+            $planId = $validated['plan'];
+            $plan = SubscriptionPlans::PLANS[$planId];
+            $existing = $user->subscriptions()->whereIn('status', ['pending', 'authorized', 'active', 'paused'])->latest('id')->first();
+            if ($existing) {
+                if (in_array($existing->status, ['authorized', 'active', 'paused'], true)) {
+                    return response()->json(['error' => 'Ya tenés una suscripción. Cancelá su renovación antes de contratar otro plan.'], 409);
                 }
-
-                return response()->json([
-                    'error' => "Mercado Pago ({$response->status()}): {$mpMsg}",
-                    'debug' => $errorData
-                ], 500);
+                if ($existing->plan === $planId && $existing->checkout_url
+                    && (float) $existing->amount === (float) $plan['amount']) {
+                    return $this->checkoutResponse($existing);
+                }
+                if ($existing->mercadopago_id) {
+                    Http::withToken($token)->timeout(15)->put('https://api.mercadopago.com/preapproval/' . rawurlencode($existing->mercadopago_id), ['status' => 'cancelled'])->throw();
+                }
+                $existing->update(['status' => 'canceled']);
             }
 
-            $data = $response->json();
-
-            // Guardar intención de suscripción (recurrente)
-            $subscription = Subscription::updateOrCreate(
-                ['user_id' => $user->id],
-                [
-                    'mercadopago_id' => $data['id'] ?? null,
-                    'amount' => $amount,
+            $reference = 'ff-' . $user->id . '-' . Str::uuid();
+            $frontend = rtrim(config('services.mercadopago.frontend_url') ?: rtrim(config('app.url'), '/') . '/app', '/');
+            $response = Http::withToken($token)->timeout(20)
+                ->post('https://api.mercadopago.com/preapproval', [
+                    'reason' => 'FactuFlash - ' . $plan['name'],
+                    'external_reference' => $reference,
+                    'payer_email' => $user->email,
+                    'auto_recurring' => [
+                        'frequency' => $plan['months'], 'frequency_type' => 'months',
+                        'transaction_amount' => $plan['amount'], 'currency_id' => 'ARS',
+                    ],
+                    'back_url' => $frontend . '/#/suscripcion/exito?plan=' . $planId,
+                    'notification_url' => route('subscription.webhook'),
                     'status' => 'pending',
-                    'start_date' => now(),
-                    'next_payment_date' => $request->plan === self::PLAN_MONTHLY
-                        ? now()->addMonth()
-                        : now()->addYear(),
-                ]
-            );
-
-            return response()->json([
-                'checkout_url' => $data['init_point'] ?? $data['sandbox_init_point'] ?? null,
-                'preapproval_id' => $data['id'] ?? null,
-                'plan' => $request->plan,
-            ]);
-        } catch (\Exception $e) {
-            Log::error('Fatal checkout error', [
-                'msg' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine()
-            ]);
-            return response()->json([
-                'error' => 'Error interno: ' . $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine()
-            ], 500);
-        }
-    }
-
-    public function webhook(Request $request): JsonResponse
-    {
-        $data = $request->all();
-        $type = $data['type'] ?? $data['topic'] ?? '';
-
-        // Si es una suscripción recurrente
-        if ($type === 'subscription_preapproval') {
-            $id = $data['data']['id'] ?? null;
-            if ($id) {
-                $this->updateSubscriptionStatus($id);
+                ]);
+            if (!$response->successful()) {
+                Log::warning('Subscription checkout rejected', ['http_status' => $response->status()]);
+                return response()->json(['error' => 'Mercado Pago no pudo iniciar la suscripción. Revisá tu correo y volvé a intentar; si persiste, contactá a soporte.'], 502);
             }
+            $data = $response->json();
+            if (empty($data['id']) || empty($data['init_point'])) {
+                return response()->json(['error' => 'Mercado Pago no devolvió un enlace de pago válido.'], 502);
+            }
+            $subscription = Subscription::create([
+                'user_id' => $user->id, 'plan' => $planId, 'amount' => $plan['amount'],
+                'status' => 'pending', 'mercadopago_id' => $data['id'],
+                'external_reference' => $reference, 'checkout_url' => $data['init_point'],
+                'start_date' => now(),
+            ]);
+            return $this->checkoutResponse($subscription);
+        } catch (\Throwable $e) {
+            Log::warning('Subscription checkout unavailable', ['exception' => get_class($e)]);
+            return response()->json(['error' => 'No se pudo conectar con Mercado Pago. Intentá nuevamente en unos minutos.'], 502);
+        } finally {
+            $lock->release();
         }
-
-        return response()->json(['status' => 'ok']);
     }
 
-    private function updateSubscriptionStatus(string $preapprovalId): void
+    private function checkoutResponse(Subscription $subscription): JsonResponse
     {
-        $mpToken = config('services.mercadopago.token');
-        $response = Http::withToken($mpToken)
-            ->get("https://api.mercadopago.com/preapproval/{$preapprovalId}");
+        return response()->json([
+            'checkout_url' => $subscription->checkout_url,
+            'init_point' => $subscription->checkout_url,
+            'preapproval_id' => $subscription->mercadopago_id,
+            'plan' => $subscription->plan,
+        ]);
+    }
 
-        if ($response->failed()) return;
-
-        $data = $response->json();
-        $externalRef = $data['external_reference'] ?? '';
-        $parts = explode('-', $externalRef);
-        $userId = (int) ($parts[0] ?? 0);
-
-        if (!$userId) return;
-
-        $user = \App\Models\User::find($userId);
-        if (!$user) return;
-
-        $status = $data['status'] === 'authorized' ? 'active' : 'canceled';
-        
-        $subscription = Subscription::updateOrCreate(
-            ['user_id' => $userId],
-            [
-                'status' => $status,
-                'mercadopago_id' => $preapprovalId,
-                'amount' => $data['auto_recurring']['transaction_amount'] ?? 35000,
-                'start_date' => now(),
-                'next_payment_date' => $data['next_payment_date'] ?? now()->addMonth()
-            ]
-        );
-
-        // Si el pago está autorizado, activamos el plan del usuario
-        if ($status === 'active') {
-            $user->update([
-                'plan_status' => 'active',
-                'trial_expires_at' => $data['next_payment_date'] ?? now()->addMonth()
-            ]);
+    public function webhook(Request $request, SubscriptionBilling $billing): JsonResponse
+    {
+        $type = $request->input('type', $request->input('topic'));
+        if (!in_array($type, ['subscription_preapproval', 'subscription_authorized_payment', 'payment'], true)) {
+            return response()->json(['status' => 'ignored']);
         }
+        $id = $request->input('data.id', $request->input('id', $request->query('data_id')));
+        if (!is_scalar($id) || !preg_match('/^[A-Za-z0-9_-]+$/', (string) $id)) {
+            return response()->json(['error' => 'Notificación inválida.'], 422);
+        }
+        if (!$this->validSignature($request, (string) $id)) return response()->json(['error' => 'Firma inválida.'], 401);
+        try {
+            $ids = [];
+            if ($type === 'subscription_preapproval') {
+                $ids[] = (string) $id;
+            } elseif ($type === 'subscription_authorized_payment') {
+                $authorized = $billing->get('authorized_payments/' . rawurlencode((string) $id));
+                $ids[] = $authorized['preapproval_id'] ?? '';
+            } else {
+                $payments = $billing->get('authorized_payments/search', ['payment_id' => $id]);
+                $ids = array_column($payments['results'] ?? [], 'preapproval_id');
+            }
+            foreach (array_unique($ids) as $providerId) {
+                $subscription = Subscription::where('mercadopago_id', $providerId)->first();
+                if ($subscription) $billing->sync($subscription);
+            }
+            return response()->json(['status' => 'ok']);
+        } catch (\Throwable $e) {
+            Log::warning('Subscription webhook verification failed', ['exception' => get_class($e)]);
+            return response()->json(['error' => 'No se pudo verificar el pago. Reintentar notificación.'], 503);
+        }
+    }
+
+    private function validSignature(Request $request, string $id): bool
+    {
+        $secret = config('services.mercadopago.webhook_secret');
+        if (!$secret) return true; // Provider API verification is always mandatory.
+        $parts = [];
+        foreach (explode(',', (string) $request->header('x-signature')) as $part) {
+            $pair = explode('=', trim($part), 2);
+            if (count($pair) === 2) $parts[$pair[0]] = $pair[1];
+        }
+        if (empty($parts['ts']) || empty($parts['v1']) || !$request->header('x-request-id')) return false;
+        $manifest = 'id:' . strtolower($id) . ';request-id:' . $request->header('x-request-id') . ';ts:' . $parts['ts'] . ';';
+        return hash_equals(hash_hmac('sha256', $manifest, $secret), $parts['v1']);
     }
 
     public function cancel(Request $request): JsonResponse
     {
-        $user = $request->user();
-        $subscription = Subscription::where('user_id', $user->id)
-            ->where('status', 'active')
-            ->first();
-
-        if (!$subscription || !$subscription->mercadopago_id) {
-            return response()->json(['error' => 'No hay una suscripción activa para cancelar.'], 422);
+        abort_if($request->user()->owner_id, 403, 'Solo el titular puede cancelar una suscripción.');
+        $subscription = $request->user()->subscriptions()
+            ->whereIn('status', ['active', 'authorized', 'pending', 'paused'])->latest('id')->first();
+        if (!$subscription?->mercadopago_id) return response()->json(['error' => 'No hay una renovación para cancelar.'], 422);
+        try {
+            Http::withToken(config('services.mercadopago.token'))->timeout(15)
+                ->put('https://api.mercadopago.com/preapproval/' . rawurlencode($subscription->mercadopago_id), ['status' => 'cancelled'])->throw();
+            $subscription->update(['status' => 'canceled']);
+            return response()->json(['message' => 'Renovación cancelada. Conservás el acceso hasta el final del período abonado.']);
+        } catch (\Throwable $e) {
+            return response()->json(['error' => 'No se pudo cancelar en Mercado Pago. Intentá nuevamente.'], 502);
         }
-
-        $mpToken = config('services.mercadopago.token');
-
-        // Llamada a Mercado Pago para cancelar el débito automático
-        $response = Http::withToken($mpToken)
-            ->put("https://api.mercadopago.com/preapproval/{$subscription->mercadopago_id}", [
-                'status' => 'cancelled'
-            ]);
-
-        if ($response->failed()) {
-            Log::error('MP cancellation error', ['body' => $response->body()]);
-            return response()->json(['error' => 'No se pudo cancelar en Mercado Pago. Por favor intentá de nuevo.'], 500);
-        }
-
-        $subscription->update(['status' => 'canceled']);
-        
-        // El usuario conserva el acceso hasta que finalice el periodo pagado (trial_expires_at)
-        // pero plan_status ya no será 'active' para renovación automática
-        $user->update(['plan_status' => 'trial']);
-
-        return response()->json(['message' => 'Renovación automática cancelada con éxito. Podrás seguir usando el sistema hasta el final de tu periodo actual.']);
     }
 
-    public function status(Request $request): JsonResponse
+    public function status(Request $request, SubscriptionBilling $billing): JsonResponse
     {
-        $user = $request->user();
-        $subscription = Subscription::where('user_id', $user->id)->first();
-
+        $user = $request->user()->owner_id ? \App\Models\User::findOrFail($request->user()->owner_id) : $request->user();
+        $subscription = $user->subscriptions()->latest('id')->first();
+        $verificationPending = false;
+        if ($subscription?->mercadopago_id
+            && (!$subscription->last_verified_at || $subscription->last_verified_at->lt(now()->subSeconds(10)))) {
+            try {
+                $billing->sync($subscription);
+                $user->refresh();
+            } catch (\Throwable $e) {
+                $verificationPending = true;
+                Log::warning('Subscription status verification unavailable', ['subscription_id' => $subscription->id, 'exception' => get_class($e)]);
+            }
+        }
+        $paid = (bool) $user->paid_until?->isFuture();
         return response()->json([
-            'has_subscription' => $user->plan_status === 'active',
-            'status' => $subscription?->status ?? 'none',
-            'plan' => $subscription ? (
-                $subscription->amount <= 40000 ? self::PLAN_MONTHLY : self::PLAN_ANNUAL
-            ) : null,
-            'current_period_end' => $user->trial_expires_at?->format('Y-m-d'),
+            'has_subscription' => $paid,
+            'has_access' => $user->has_access,
+            'status' => $paid && $subscription?->status === 'authorized' ? 'active' : ($subscription?->status ?? 'none'),
+            'plan' => $subscription?->plan,
+            'amount' => $subscription?->amount,
+            'current_period_end' => $user->paid_until?->toIso8601String(),
+            'trial_expires_at' => $user->trial_expires_at?->toIso8601String(),
+            'days_left' => $user->days_left,
             'start_date' => $subscription?->start_date?->format('Y-m-d'),
+            'can_cancel' => !$request->user()->owner_id && in_array($subscription?->status, ['authorized', 'active', 'pending', 'paused'], true),
+            'verification_pending' => $verificationPending,
         ]);
     }
 }

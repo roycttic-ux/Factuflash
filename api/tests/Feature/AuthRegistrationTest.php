@@ -4,49 +4,63 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class AuthRegistrationTest extends TestCase
 {
     use RefreshDatabase;
 
-    /** @test */
-    public function a_new_user_gets_15_days_of_trial()
+    protected function setUp(): void
     {
-        // Mock Turnstile verification (assuming it returns true in AuthController)
-        $payload = [
-            'name' => 'Juan Perez',
-            'email' => 'juan@example.com',
-            'password' => 'password123',
-            'company_name' => 'Mi Negocio',
-            'captcha_token' => 'mock-token'
-        ];
-
-        $response = $this->postJson('/api/v1/auth/register', $payload);
-
-        $response->assertStatus(201);
-        
-        $user = User::where('email', 'juan@example.com')->first();
-        $this->assertEquals(15, $user->days_left);
-        $this->assertEquals('trial', $user->plan_status);
-        
-        // Verificamos que se crearon los settings por defecto
-        $this->assertNotNull($user->settings);
-        $this->assertEquals('Mi Negocio', $user->settings->company_name);
+        parent::setUp();
+        config(['services.turnstile.secret' => 'test-secret']);
     }
 
-    /** @test */
-    public function owner_cannot_access_dashboard_after_trial_expires()
+    public function test_high_volume_registration_is_referred_to_whatsapp_without_creating_account(): void
     {
-        // Nota: El bloqueo de rutas lo hacemos en el Middleware o Router de Vue,
-        // pero podemos probar si la API de estadisticas/dashboard es accesible (opcional)
-        // Por ahora, el requerimiento era visual, pero podemos asegurar que el atributo
-        // days_left sea 0.
-        
-        $user = User::factory()->create([
-            'trial_expires_at' => now()->subDay()
-        ]);
-        
-        $this->assertEquals(0, $user->days_left);
+        Http::preventStrayRequests();
+        $this->postJson('/api/v1/auth/register', [
+            'name' => 'Comercio', 'email' => 'volume@example.com', 'password' => 'password123',
+            'captcha_token' => 'mock-token', 'expected_monthly_invoices' => 1001, 'simultaneous_registers' => 1,
+        ])->assertStatus(422)->assertJsonPath('contact_url', 'https://wa.me/5492954326436');
+        $this->assertDatabaseMissing('users', ['email' => 'volume@example.com']);
+        Http::assertNothingSent();
+    }
+
+    public function test_one_thousand_invoices_and_three_registers_still_gets_standard_trial(): void
+    {
+        Http::fake(['challenges.cloudflare.com/*' => Http::response(['success' => true])]);
+        $this->postJson('/api/v1/auth/register', [
+            'name' => 'Comercio', 'email' => 'standard@example.com', 'password' => 'password123',
+            'captcha_token' => 'mock-token', 'expected_monthly_invoices' => 1000, 'simultaneous_registers' => 3,
+        ])->assertCreated()->assertJsonPath('user.expected_monthly_invoices', 1000)->assertJsonPath('user.simultaneous_registers', 3)->assertJsonPath('user.days_left', 7);
+    }
+
+    public function test_four_registers_is_referred_even_with_low_invoice_volume(): void
+    {
+        $this->postJson('/api/v1/auth/register', [
+            'name' => 'Comercio', 'email' => 'registers@example.com', 'password' => 'password123',
+            'captcha_token' => 'mock-token', 'expected_monthly_invoices' => 100, 'simultaneous_registers' => 4,
+        ])->assertStatus(422)->assertJsonPath('contact_url', 'https://wa.me/5492954326436');
+        $this->assertDatabaseMissing('users', ['email' => 'registers@example.com']);
+    }
+
+    public function test_new_user_gets_exactly_seven_trial_days_and_cannot_set_paid_status(): void
+    {
+        $this->travelTo(now()->startOfSecond());
+        Http::preventStrayRequests();
+        Http::fake(['challenges.cloudflare.com/*' => Http::response(['success' => true])]);
+        $this->postJson('/api/v1/auth/register', [
+            'name' => 'Juan Perez', 'email' => 'juan@example.com', 'password' => 'password123',
+            'company_name' => 'Mi Negocio', 'captcha_token' => 'mock-token',
+            'plan_status' => 'active', 'paid_until' => now()->addYear()->toIso8601String(),
+        ])->assertCreated();
+        $user = User::where('email', 'juan@example.com')->firstOrFail();
+        $this->assertEquals(7, $user->days_left);
+        $this->assertTrue(now()->addDays(7)->equalTo($user->trial_expires_at));
+        $this->assertEquals('trial', $user->plan_status);
+        $this->assertNull($user->paid_until);
+        $this->assertEquals('Mi Negocio', $user->settings->company_name);
     }
 }

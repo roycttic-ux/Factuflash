@@ -1,6 +1,6 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref, onMounted, reactive } from 'vue'
-import { settingsApi, arcaApi, subscriptionApi, posDevicesApi } from '@/api/services'
+import { settingsApi, arcaApi, posDevicesApi } from '@/api/services'
 import { useAuthStore } from '@/stores/auth'
 import { useRoute } from 'vue-router'
 
@@ -8,49 +8,20 @@ const auth = useAuthStore()
 const route = useRoute()
 const loading = ref(true)
 const saving = ref(false)
-const paying = ref('')
 const toast = ref<{ msg: string; type: string } | null>(null)
 const openSection = ref<string | null>('empresa')
-const localIp = ref<string>('Detectando...')
+const fiscalJurisdictions = [
+  'Buenos Aires', 'Catamarca', 'Chaco', 'Chubut', 'Ciudad Autónoma de Buenos Aires',
+  'Córdoba', 'Corrientes', 'Entre Ríos', 'Formosa', 'Jujuy', 'La Pampa', 'La Rioja',
+  'Mendoza', 'Misiones', 'Neuquén', 'Río Negro', 'Salta', 'San Juan', 'San Luis',
+  'Santa Cruz', 'Santa Fe', 'Santiago del Estero', 'Tierra del Fuego', 'Tucumán',
+]
+const fiscalJurisdictionChoice = ref('')
+const fiscalJurisdictionOther = ref('')
+
 
 function toggleSection(section: string) {
   openSection.value = openSection.value === section ? null : section
-}
-
-// Detecta la IP local vía WebRTC (sin servidor externo)
-function detectLocalIp() {
-  try {
-    const pc = new RTCPeerConnection({ iceServers: [] })
-    pc.createDataChannel('')
-    pc.createOffer().then(o => pc.setLocalDescription(o))
-    pc.onicecandidate = (e) => {
-      if (!e || !e.candidate) return
-      const match = e.candidate.candidate.match(
-        /([0-9]{1,3}(\.[0-9]{1,3}){3})/
-      )
-      if (match) {
-        const ip = match[1]
-        // Filtrar IPs privadas de red local (192.168.x.x, 10.x.x.x, 172.16-31.x.x)
-        if (/^(192\.168|10\.|172\.(1[6-9]|2[0-9]|3[01]))\./.test(ip)) {
-          localIp.value = ip
-          pc.close()
-        }
-      }
-    }
-    setTimeout(() => {
-      if (localIp.value === 'Detectando...') {
-        localIp.value = 'No detectada — usá ipconfig'
-      }
-    }, 3000)
-  } catch {
-    localIp.value = 'No disponible — usá ipconfig'
-  }
-}
-
-function copyIp() {
-  if (localIp.value.includes('ipconfig')) return
-  navigator.clipboard.writeText(localIp.value)
-  showToast('IP copiada al portapapeles', 'success')
 }
 
 const form = reactive({
@@ -61,6 +32,11 @@ const form = reactive({
   company_email: '',
   invoice_prefix: 'F',
   tax_condition: 'Responsable Inscripto',
+  fiscal_jurisdiction: '',
+  business_activity: '',
+  iibb_number: '',
+  iibb_condition: '',
+  default_iibb_alicuota: '' as string | number,
   dollar_rate_mode: 'manual',
   dollar_rate_manual: '1240',
   whatsapp_number: '',
@@ -104,9 +80,9 @@ const pos = reactive({
 })
 
 onMounted(async () => {
-  detectLocalIp()
+
   if (route.query.payment === 'success') {
-    showToast('¡Pago procesado con éxito! Tu plan se actualizará pronto.', 'success')
+    showToast('Consultá Suscripción para verificar la confirmación del pago.', 'success')
   } else if (route.query.payment === 'failure') {
     showToast('El pago no pudo completarse. Reintentá nuevamente.', 'error')
   }
@@ -114,6 +90,9 @@ onMounted(async () => {
   try {
     const res = await settingsApi.get()
     const s = res.data.settings
+    const jurisdiction = s?.fiscal_jurisdiction ?? ''
+    fiscalJurisdictionChoice.value = fiscalJurisdictions.includes(jurisdiction) ? jurisdiction : (jurisdiction ? '__other__' : '')
+    fiscalJurisdictionOther.value = fiscalJurisdictions.includes(jurisdiction) ? '' : jurisdiction
     if (s) Object.assign(form, {
       company_name:       s.company_name       ?? auth.user?.company_name ?? '',
       company_cuit:       s.company_cuit       ?? '',
@@ -122,6 +101,11 @@ onMounted(async () => {
       company_email:      s.company_email      ?? auth.user?.email ?? '',
       invoice_prefix:     s.invoice_prefix     ?? 'F',
       tax_condition:      s.tax_condition      ?? 'Responsable Inscripto',
+      fiscal_jurisdiction: jurisdiction,
+      business_activity: s.business_activity ?? '',
+      iibb_number: s.iibb_number ?? '',
+      iibb_condition: s.iibb_condition ?? '',
+      default_iibb_alicuota: s.default_iibb_alicuota ?? '',
       dollar_rate_mode:   s.dollar_rate_mode   ?? 'manual',
       dollar_rate_manual: s.dollar_rate_manual ?? '1240',
       whatsapp_number:    s.whatsapp_number    ?? '',
@@ -195,12 +179,18 @@ async function deletePosDevice(id: number) {
 }
 
 async function save() {
+  const rate = form.default_iibb_alicuota
+  if (rate !== '' && (!Number.isFinite(Number(rate)) || Number(rate) < 0 || Number(rate) > 100 || Math.abs(Number(rate) * 100 - Math.round(Number(rate) * 100)) > 0.000001)) {
+    showToast('La alícuota de referencia debe estar entre 0 y 100, con hasta dos decimales.', 'error')
+    return
+  }
   saving.value = true
   try {
-    await settingsApi.update({ ...form })
+    const jurisdiction = fiscalJurisdictionChoice.value === '__other__' ? fiscalJurisdictionOther.value.trim() : fiscalJurisdictionChoice.value
+    await settingsApi.update({ ...form, fiscal_jurisdiction: jurisdiction, default_iibb_alicuota: rate === '' ? null : Number(rate) })
     showToast('Configuración guardada', 'success')
   } catch (e: any) {
-    showToast(e?.response?.data?.message ?? 'Error al guardar', 'error')
+    showToast(Object.values(e?.response?.data?.errors || {}).flat().join(' ') || e?.response?.data?.message || 'Error al guardar', 'error')
   } finally {
     saving.value = false
   }
@@ -254,6 +244,13 @@ function handleFile(e: Event) {
   if (input.files) arca.file = input.files[0]
 }
 
+async function verifyArca() {
+  arca.loading = true
+  try { const res = await arcaApi.status(); arca.connected = res.data.connected; showToast('Vinculación y punto de venta verificados con ARCA.', 'success') }
+  catch (e: any) { arca.connected = false; showToast(e.response?.data?.error ?? 'No se pudo verificar ARCA.', 'error') }
+  finally { arca.loading = false }
+}
+
 async function uploadCert() {
   if (!arca.file && !arca.certText) return
   arca.loading = true
@@ -300,50 +297,6 @@ function downloadCsr() {
   window.URL.revokeObjectURL(url)
   showToast('Descargando archivo CSR', 'success')
 }
-
-function copyToken() {
-  const token = auth.user?.api_token ?? ''
-  if (!token) { showToast('Token no disponible', 'error'); return }
-  navigator.clipboard.writeText(token)
-  showToast('Token copiado', 'success')
-}
-
-function downloadUrl(platform: string) {
-  const token = auth.user?.api_token ?? ''
-  const baseUrl = window.location.origin
-  return `${baseUrl}/api/v1/pos-devices/download-agent/${platform}?token=${token}`
-}
-
-async function cancelSubscription() {
-  if (!confirm('¿Estás seguro de cancelar tu suscripción?')) return
-  saving.value = true
-  try {
-    await subscriptionApi.cancel()
-    await auth.fetchMe()
-    showToast('Suscripción cancelada con éxito', 'success')
-  } catch {
-    showToast('Error al cancelar la suscripción', 'error')
-  } finally {
-    saving.value = false
-  }
-}
-
-async function pay(plan: string) {
-  paying.value = plan
-  try {
-    const res = await subscriptionApi.checkout(plan)
-    if (res.data.checkout_url) {
-      window.location.href = res.data.checkout_url
-    } else {
-      showToast('No se pudo generar el link de pago', 'error')
-    }
-  } catch (e: any) {
-    showToast(e.response?.data?.error ?? 'Error al conectar con Mercado Pago', 'error')
-  } finally {
-    paying.value = ''
-  }
-}
-
 
 import { RouterLink } from 'vue-router'
 
@@ -434,6 +387,43 @@ const window = (globalThis as any).window
                 <option>Consumidor Final</option>
               </select>
             </div>
+            <div class="divider"></div>
+            <p class="label-bold mb-3">Configuración fiscal provincial</p>
+            <div class="grid-2">
+              <div class="form-group">
+                <label class="form-label" for="fiscal-jurisdiction">Provincia o jurisdicción principal</label>
+                <select id="fiscal-jurisdiction" v-model="fiscalJurisdictionChoice" class="form-select">
+                  <option value="">Seleccioná una provincia</option>
+                  <option v-for="jurisdiction in fiscalJurisdictions" :key="jurisdiction" :value="jurisdiction">{{ jurisdiction }}</option>
+                  <option value="__other__">Otra jurisdicción</option>
+                </select>
+                <input v-if="fiscalJurisdictionChoice === '__other__'" v-model="fiscalJurisdictionOther" class="form-input mt-2" maxlength="100" placeholder="Especificá la jurisdicción" />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="business-activity">Actividad o rubro comercial</label>
+                <input id="business-activity" v-model="form.business_activity" class="form-input" maxlength="150" placeholder="Ej.: Venta minorista de indumentaria" />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="iibb-number">Inscripción en Ingresos Brutos (opcional)</label>
+                <input id="iibb-number" v-model="form.iibb_number" class="form-input" maxlength="50" />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="iibb-condition">Condición frente a Ingresos Brutos</label>
+                <select id="iibb-condition" v-model="form.iibb_condition" class="form-select">
+                  <option value="">Sin especificar</option>
+                  <option value="local">Contribuyente local</option>
+                  <option value="convenio_multilateral">Convenio Multilateral</option>
+                  <option value="exento">Exento</option>
+                  <option value="no_inscripto">No inscripto</option>
+                  <option value="otros">Otros</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="iibb-rate">Alícuota provincial de referencia (%)</label>
+                <input id="iibb-rate" v-model="form.default_iibb_alicuota" type="number" min="0" max="100" step="0.01" class="form-input" placeholder="Opcional" />
+              </div>
+            </div>
+            <p class="text-muted" style="font-size:0.8rem;line-height:1.5;margin-top:0.75rem;">Ingresá la alícuota indicada por tu contador. Solo se usa como referencia y sugerencia al cargar un tributo; no se aplica automáticamente a las ventas. La percepción depende de la actividad, jurisdicción, régimen, padrón y operación. El IVA se configura por producto o servicio.</p>
             <!-- Datos de Transferencia Bancaria -->
             <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid rgba(255,255,255,0.08);">
               <p class="label-bold mb-3" style="color: var(--primary);">Datos para Transferencias Bancarias</p>
@@ -493,6 +483,7 @@ const window = (globalThis as any).window
         <div class="acc-body">
           <div class="acc-inner">
             <!-- Conectado -->
+            <button type="button" class="btn btn-sm btn-ghost" :disabled="arca.loading" @click="verifyArca">Verificar conexión y punto de venta</button>
             <div v-if="arca.connected" class="connected-box">
               <div class="check-circle">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
@@ -593,182 +584,17 @@ const window = (globalThis as any).window
                 <input v-model="pos.newExternalId" class="form-input" placeholder="N° de Serie / ID" />
                 <button type="button" class="btn btn-primary" :disabled="pos.loading || !pos.newName || !pos.newExternalId" @click="addPosDevice">Agregar</button>
               </div>
-              <p class="text-[10px] text-muted mt-2">Para MP Point: El N° de serie figura en la parte de atrás del equipo.</p>
+              <p class="text-[10px] text-muted mt-2">Para MP Point: ingresá el ID completo de la terminal obtenido en Mercado Pago (por ejemplo NEWLAND_N950__…). Debe estar en modo PDV; el número de serie solo no alcanza.</p>
             </div>
 
             <div class="divider"></div>
 
-            <!-- AGENTE POS BRIDGE -->
-            <div class="agent-section">
-              <div class="agent-header">
-                <div class="agent-icon-wrap">
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/>
-                    <line x1="12" y1="17" x2="12" y2="21"/>
-                  </svg>
-                </div>
-                <div>
-                  <p class="label-bold">Agente FactuFlash — Postnet Tradicional</p>
-                  <p class="text-xs text-muted">Detecta cobros del posnet y crea facturas automáticamente</p>
-                </div>
-                <span class="agent-badge">Nuevo</span>
-              </div>
-
-              <!-- Aviso MercadoPago Point ARRIBA -->
-              <div class="info-pill mb-4" style="border-left:3px solid #009ee3; border-radius:10px; background: rgba(0,158,227,0.07);">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#009ee3" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-                <p class="text-xs"><strong style="color:#009ee3;">Punto MercadoPago:</strong> No necesita este agente. Cuando el cobro es aprobado, el sistema emite la factura automáticamente por la nube.</p>
-              </div>
-
-              <!-- Cómo funciona -->
-              <div class="how-it-works">
-                <div class="hiw-step">
-                  <div class="hiw-dot">1</div>
-                  <div class="hiw-text">
-                    <strong>Descargás el agente</strong>
-                    <span>Un programa pequeño que corre en la PC del negocio</span>
-                  </div>
-                </div>
-                <div class="hiw-arrow">→</div>
-                <div class="hiw-step">
-                  <div class="hiw-dot">2</div>
-                  <div class="hiw-text">
-                    <strong>Configurás el postnet</strong>
-                    <span>El postnet se conecta a tu PC <em>como si fuera una impresora de red</em>. Vos le decís la IP de tu PC y el puerto 9100. Desde ahí, cada cobro aprobado llega al Agente.</span>
-                  </div>
-                </div>
-                <div class="hiw-arrow">→</div>
-                <div class="hiw-step">
-                  <div class="hiw-dot">3</div>
-                  <div class="hiw-text">
-                    <strong>¡Listo!</strong>
-                    <span>Cada cobro aprobado crea la factura solo</span>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Downloads -->
-              <div class="download-card">
-                <div class="download-left">
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="1.5">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                    <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-                  </svg>
-                  <div>
-                    <p class="font-bold text-sm">Agente FactuFlash</p>
-                    <p class="text-xs text-muted">Seleccioná tu sistema operativo:</p>
-                  </div>
-                </div>
-                <div class="flex gap-2">
-                  <a :href="downloadUrl('windows')"
-                     download="Agente_FactuFlash_Windows.zip"
-                     class="btn btn-primary btn-sm" style="text-decoration:none;">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;"><path d="M3 12L12 3v18l-9-9z"/></svg>
-                    Windows
-                  </a>
-                  <a :href="downloadUrl('macos')"
-                     download="Agente_FactuFlash_Mac.zip"
-                     class="btn btn-primary btn-sm" style="text-decoration:none;">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;"><path d="M9 7c-3 0-4 3-4 5s1 5 4 5c1.5 0 2.5-.5 3-1.5.5 1 1.5 1.5 3 1.5 3 0 4-3 4-5s-1-5-4-5c-1.5 0-2.5.5-3 1.5C11.5 7.5 10.5 7 9 7z"/></svg>
-                    macOS
-                  </a>
-                </div>
-              </div>
-
-              <!-- Token -->
-              <div class="token-section">
-                <div class="flex items-center gap-2 mb-2">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1fede8" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                  <p class="label-bold">Llave de Vinculación</p>
-                </div>
-                <p class="text-xs text-muted mb-3">Este código es único y sirve para que el Agente sepa que debe enviar las facturas a tu cuenta.</p>
-                <div class="token-box" style="background: rgba(31, 237, 232, 0.05); border: 1px dashed rgba(31, 237, 232, 0.3);">
-                  <code class="token-value" style="color: #1fede8; font-weight: 600;">{{ auth.user?.api_token ?? 'Cargando llave...' }}</code>
-                  <button type="button" class="btn btn-xs btn-primary" @click="copyToken" style="flex-shrink:0; background:#1fede8; color:#13124b;">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:4px;">
-                      <rect x="9" y="9" width="13" height="13" rx="2"/>
-                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-                    </svg>
-                    Copiar Llave
-                  </button>
-                </div>
-                <p class="text-[10px] opacity-40 mt-2">⚠️ No compartas esta llave con nadie ajeno a tu negocio.</p>
-              </div>
-
-              <!-- Pasos Simplificados -->
-              <div class="install-steps">
-                <p class="label-bold mb-3">Cómo instalar:</p>
-
-                <div class="install-step">
-                  <div class="is-num">1</div>
-                  <div class="is-body">
-                    <p class="is-title">Descargá y abrí el programa</p>
-                    <p class="text-xs text-muted">Hacé doble clic en <code>Agente_FactuFlash.exe</code> para iniciar.</p>
-                  </div>
-                </div>
-
-                <div class="install-step">
-                  <div class="is-num">2</div>
-                  <div class="is-body">
-                    <p class="is-title">Vinculá tu cuenta</p>
-                    <p class="text-xs text-muted">Pegá el Token de acceso que copiaste arriba en la ventana del programa.</p>
-                  </div>
-                </div>
-
-                <div class="install-step">
-                  <div class="is-num">3</div>
-                  <div class="is-body">
-                    <p class="is-title">¡Listo para facturar!</p>
-                    <p class="text-xs text-muted">El agente se quedará trabajando en la barra de tareas (junto al reloj) automáticamente.</p>
-                  </div>
-                </div>
-              </div>
-
-                <div class="install-step">
-                  <div class="is-num">4</div>
-                  <div class="is-body">
-                    <p class="is-title">Configurá la impresora de red en tu postnet</p>
-                    <p class="text-xs text-muted mb-2">En el menú del postnet buscá <strong>Impresora de Red</strong> o <strong>Network Printer</strong>:</p>
-                    <div class="network-config">
-                      <div class="nc-row">
-                        <span class="nc-label">IP de la PC:</span>
-                        <span class="nc-val" style="display:flex; align-items:center; gap:8px;">
-                          <code style="color:var(--primary); font-weight:700; font-size:0.9rem;">{{ localIp }}</code>
-                          <button
-                            v-if="!localIp.includes('ipconfig') && !localIp.includes('Detectando')"
-                            type="button"
-                            class="btn btn-xs btn-ghost"
-                            style="padding:2px 8px; font-size:10px;"
-                            @click="copyIp"
-                            title="Copiar IP"
-                          >
-                            📋 Copiar
-                          </button>
-                          <span v-if="localIp === 'Detectando...'" class="spinner spinner-xs"></span>
-                        </span>
-                      </div>
-                      <div class="nc-row">
-                        <span class="nc-label">Puerto:</span>
-                        <span class="nc-val" style="color:var(--primary);font-weight:700;">9100</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="install-step">
-                  <div class="is-num">5</div>
-                  <div class="is-body">
-                    <p class="is-title">Opcional: Iniciar automáticamente con Windows</p>
-                    <div class="code-block" style="font-size:10px;">Copiá el .py a: Inicio → Ejecutar → shell:startup</div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Nota final MP se eliminó de acá porque se movió arriba -->
+            <div class="info-pill">
+              <p>Para un posnet tradicional, abrí la factura pendiente y registrá el número de comprobante después de verificar su aprobación. No requiere instalar un agente.</p>
             </div>
           </div>
         </div>
-
+      </div>
       <!-- POSNET INTEGRATION SECTION -->
       <div class="acc-item" :class="{ open: openSection === 'mp' }">
         <button type="button" class="acc-head" @click="toggleSection('mp')">
@@ -777,22 +603,30 @@ const window = (globalThis as any).window
           </span>
           <div class="acc-meta">
             <strong>Integración de Pagos / Posnet</strong>
-            <small>Cobros automáticos con Mercado Pago o Clover</small>
+            <small>Verificación de Point y registro manual de otros posnet</small>
           </div>
           <svg class="acc-chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
         </button>
         <div class="acc-body">
           <div class="acc-inner">
             <div class="info-pill" style="border-left:3px solid #009ee3; border-radius:8px; margin-bottom:1.25rem;">
-              <p class="text-xs" style="color:var(--text-muted);">Vinculá tu cuenta para que cuando cobres, el sistema registre el pago automáticamente.</p>
+              <p class="text-xs" style="color:var(--text-muted);">Configurá la cuenta de Mercado Pago del comercio. Emití la factura y enviá el cobro al Point desde su detalle. El sistema consulta la aprobación antes de marcarla cobrada.</p>
             </div>
+            <p class="text-xs text-muted mb-4">Para recibir confirmaciones aunque cierres la pantalla, configurá el evento <strong>Order (Mercado Pago)</strong> en Webhooks de tu aplicación de Mercado Pago, con la URL pública HTTPS de este sistema seguida de <code>/api/v1/webhooks/mp</code>.</p>
             
             <div class="form-group mb-4">
               <label class="form-label">Proveedor de Posnet</label>
               <select v-model="form.pos_provider" class="form-select">
                 <option value="none">Ninguno</option>
-                <option value="mercadopago">Mercado Pago</option>
-                <option value="clover">Clover</option>
+                <option value="mercadopago">Mercado Pago Point (integración automática)</option>
+                <option value="payway">Payway / Prisma (registro manual)</option>
+                <option value="fiserv">Fiserv Posnet / Clover (registro manual)</option>
+                <option value="getnet">Getnet (registro manual)</option>
+                <option value="uala_bis">Ualá Bis (registro manual)</option>
+                <option value="naranja_x">Naranja X (registro manual)</option>
+                <option value="nave">Nave / Galicia (registro manual)</option>
+                <option value="modo">MODO (registro manual)</option>
+                <option value="clover">Clover (registro manual)</option>
               </select>
             </div>
 
@@ -817,6 +651,7 @@ const window = (globalThis as any).window
                 <input v-model="form.pos_clover_access_token" type="password" autocomplete="off" class="form-input" placeholder="Ej: 01a2b3c4-d5e6-..." />
               </div>
             </div>
+            <p v-if="['payway','fiserv','getnet','uala_bis','naranja_x','nave','modo','clover'].includes(form.pos_provider)" class="text-xs text-muted mt-3" role="status">Este proveedor queda disponible para registrar comprobantes desde cada factura. La conexión automática se activa cuando confirmemos el proveedor, modelo y credenciales de un comercio.</p>
           </div>
         </div>
       </div>
@@ -835,109 +670,12 @@ const window = (globalThis as any).window
         </button>
         <div class="acc-body">
           <div class="acc-inner">
-            <!-- Plan actual banner -->
             <div class="current-plan-banner">
-              <span class="cp-label">Plan actual</span>
-              <span class="cp-name">{{ auth.user?.plan_status === 'trial' ? 'Prueba Gratis' : auth.user?.plan_status === 'monthly' ? 'Mensual Premium' : 'Anual Gold' }}</span>
+              <span class="cp-label">Estado de acceso</span>
+              <span class="cp-name">{{ auth.user?.has_access ? (auth.user?.plan_status === 'trial' ? 'Prueba gratuita de 7 días' : 'Período abonado vigente') : 'Acceso vencido' }}</span>
             </div>
-
-            <!-- Opciones -->
-            <!-- Billing Section -->
-            <div class="billing-container">
-              <div class="billing-header">
-                <span class="billing-badge">SUSCRIPCIÓN</span>
-                <h2 class="billing-title">Tu Suscripción Activa</h2>
-                <p class="billing-subtitle">Gestioná tu plan actual y detalles de facturación.</p>
-              </div>
-
-              <!-- Active Status Banner -->
-              <div class="active-plan-banner">
-                <div class="banner-left">
-                  <div class="status-label">ESTADO ACTUAL: <span class="status-active">ACTIVA</span></div>
-                  <p class="plan-info"><strong>Plan {{ auth.user?.plan_status === 'monthly' ? 'Mensual' : 'Anual' }}</strong> activo. Próxima renovación: <strong>10 de junio de 2026</strong></p>
-                </div>
-                <button type="button" class="btn-cancel-subs" @click="cancelSubscription">Cancelar renovación automática</button>
-              </div>
-              <p class="cancel-disclaimer">* Al cancelar, dejarás de recibir cargos automáticos pero mantendrás el acceso hasta el final de tu período actual.</p>
-
-              <!-- Plans Grid -->
-              <div class="plans-grid-minimal">
-                <!-- Monthly -->
-                <div class="plan-card-minimal" :class="{ selected: auth.user?.plan_status === 'monthly' }">
-                  <div class="tag popular">MÁS ELEGIDO</div>
-                  <div class="plan-head">
-                    <div class="plan-icon-svg">
-                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M12 12h.01"/><path d="M17 12h.01"/><path d="M7 12h.01"/></svg>
-                    </div>
-                    <h3 class="name">Plan Mensual</h3>
-                    <p class="desc">Ideal para empezar sin compromiso</p>
-                  </div>
-                  <div class="price">
-                    <span class="sym">$</span>
-                    <span class="num">35.000</span>
-                    <span class="per">/ mes</span>
-                  </div>
-                  <ul class="features">
-                    <li><svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> Facturas ilimitadas</li>
-                    <li><svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> Productos y Stock Pro</li>
-                    <li><svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> Integración ARCA + CAE</li>
-                    <li><svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> Mercado Pago Checkouts</li>
-                    <li><svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> Soporte prioritario WhatsApp</li>
-                    <li><svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> Dashboard en tiempo real</li>
-                    <li><svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> Reportes y Exportación</li>
-                  </ul>
-                  <div class="selection-indicator"></div>
-                </div>
-
-                <!-- Yearly -->
-                <div class="plan-card-minimal featured" :class="{ selected: auth.user?.plan_status === 'yearly' }">
-                  <div class="tag save">AHORRÁS $100.000</div>
-                  <div class="plan-head">
-                    <div class="plan-icon-svg">
-                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-                    </div>
-                    <h3 class="name">Plan Anual</h3>
-                    <p class="desc">Ahorrá y congelá precio por un año</p>
-                  </div>
-                  <div class="price">
-                    <span class="sym">$</span>
-                    <span class="num">320.000</span>
-                    <span class="per">/ año</span>
-                  </div>
-                  <ul class="features">
-                    <li><svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> Facturas ilimitadas</li>
-                    <li><svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> Productos y Stock Pro</li>
-                    <li><svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> Integración ARCA + CAE</li>
-                    <li><svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> Mercado Pago Checkouts</li>
-                    <li><svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> Soporte prioritario WhatsApp</li>
-                    <li><svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> Dashboard en tiempo real</li>
-                    <li><svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg> Reportes y Exportación</li>
-                  </ul>
-                  <div class="selection-indicator gold"></div>
-                </div>
-              </div>
-
-              <!-- Selection Bar -->
-              <div class="plan-selection-bar">
-                <div class="selection-info">
-                  <span class="label">PLAN SELECCIONADO</span>
-                  <div class="selected-plan-name">
-                    Plan {{ auth.user?.plan_status === 'monthly' ? 'Mensual' : 'Anual' }}
-                    <span class="selected-price">${{ auth.user?.plan_status === 'monthly' ? '35.000' : '320.000' }}/mes</span>
-                  </div>
-                </div>
-                <button type="button" class="btn-pay-secure" @click="pay(auth.user?.plan_status || 'monthly')">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
-                  Pagar suscripción segura
-                </button>
-              </div>
-            </div>
-
-            <!-- Cancelar -->
-            <div v-if="auth.user?.plan_status !== 'trial'" class="cancel-row">
-              <button type="button" class="btn btn-xs btn-ghost" style="color:#f87171;" @click="cancelSubscription">Cancelar renovación automática</button>
-            </div>
-
+            <p class="billing-subtitle">Consultá el vencimiento de tu acceso y elegí tu plan mensual o anual.</p>
+            <RouterLink to="/suscripcion" class="btn btn-primary" style="margin:1rem 0">Ver planes y gestionar suscripción</RouterLink>
             <div class="divider"></div>
 
             <!-- Cuenta -->

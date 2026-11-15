@@ -62,15 +62,17 @@ class AdminController extends Controller
         }
 
         $user = User::findOrFail($id);
-        $plan = $request->input('plan', 'monthly');
+        $validated = $request->validate(['plan' => 'sometimes|in:monthly,annual']);
+        $plan = $validated['plan'] ?? 'monthly';
         
         $user->plan_status = 'active';
-        $user->trial_expires_at = $plan === 'annual' ? now()->addYear() : now()->addMonth();
+        $start = $user->paid_until && $user->paid_until->isFuture() ? $user->paid_until->copy() : now();
+        $user->paid_until = $start->addMonthsNoOverflow(\App\Services\SubscriptionPlans::PLANS[$plan]['months']);
         $user->save();
 
         return response()->json([
             'message' => 'Suscripción activada manualmente (' . $plan . ')',
-            'new_date' => $user->trial_expires_at
+            'new_date' => $user->paid_until
         ]);
     }
 }

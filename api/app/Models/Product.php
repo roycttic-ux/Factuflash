@@ -5,12 +5,24 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Casts\Attribute;
+use App\Services\ProductDescriptionHtml;
 
 class Product extends Model
 {
     use HasFactory;
 
+    protected function description(): Attribute
+    {
+        // Sanitize reads too, so descriptions saved before this fix cannot execute HTML.
+        return Attribute::make(
+            get: fn ($value) => ProductDescriptionHtml::sanitize($value),
+            set: fn ($value) => ProductDescriptionHtml::sanitize($value),
+        );
+    }
+
     protected $fillable = [
+        'iva_id',
         'user_id',
         'sku',
         'name',

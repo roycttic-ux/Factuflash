@@ -1,0 +1,25 @@
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+!.env.example.*
+
+# PHP / Laravel dependencies and generated files
+**/vendor/
+**/storage/*.key
+**/storage/logs/*.log
+**/bootstrap/cache/*.php
+
+# JavaScript dependencies and builds
+**/node_modules/
+**/dist/
+
+# Local development output and release bundles
+/tmp/
+/artifacts/
+/tools/*.php
+/vps_mega_setup.sh
+
+# Operating system files
+.DS_Store
+Thumbs.db

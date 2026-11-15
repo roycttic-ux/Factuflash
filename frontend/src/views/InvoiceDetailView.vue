@@ -1,13 +1,21 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { invoicesApi } from '@/api/services'
+import InvoicePaymentPanel from '@/components/InvoicePaymentPanel.vue'
 
 const router = useRouter()
 const route = useRoute()
 const invoice = ref<any>(null)
 const loading = ref(true)
+const showingCredit = ref(false)
+const ivaLabels: Record<number, string> = { 1: 'Responsable Inscripto', 4: 'Exento', 5: 'Consumidor Final', 6: 'Monotributista' }
 const error = ref('')
+const fiscal = computed(() => invoice.value?.fiscal_snapshot?.fiscal || {})
+const historicalTributes = computed<any[]>(() => fiscal.value.tributos || [])
+const tributeTotal = computed(() => Number(fiscal.value.tributos_total ?? invoice.value?.fiscal_snapshot?.tributos_total ?? invoice.value?.total_tributos ?? 0))
+const iibbLabels: Record<string, string> = { local: 'Contribuyente local', convenio_multilateral: 'Convenio Multilateral', exento: 'Exento', no_inscripto: 'No inscripto', otros: 'Otros' }
+const auditLabels: Record<string, string> = { added: 'Tributos agregados', modified: 'Tributos modificados', reversed: 'Tributos revertidos por nota de crédito' }
 
 onMounted(async () => {
   try {
@@ -21,7 +29,7 @@ onMounted(async () => {
 })
 
 function formatARS(n: number) {
-  return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(n)
+  return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n)
 }
 function formatDate(d: string) {
   if (!d) return ''
@@ -38,15 +46,36 @@ function printInvoice() {
   window.print()
 }
 
+const downloadingPdf = ref(false)
+async function downloadPdf() {
+  if (!invoice.value) return
+  downloadingPdf.value = true
+  try {
+    const res = await invoicesApi.downloadPdf(invoice.value.id)
+    const url = URL.createObjectURL(res.data)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `factura-${invoice.value.invoice_number}.pdf`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  } catch (e) {
+    alert('No se pudo generar el PDF. Intentá de nuevo.')
+  } finally {
+    downloadingPdf.value = false
+  }
+}
+
 function getAfipQrUrl(inv: any) {
   if (!inv || !inv.cae) return ''
   
   // Extract sequential invoice number from the invoice_number string (e.g. "C-0001-00000005" -> 5)
   const parts = inv.invoice_number.split('-')
-  const nroCmp = parseInt(parts[parts.length - 1]) || 1
+  const nroCmp = parseInt(parts[2] || parts[parts.length - 1]) || 1
   
   // Clean CUIT
-  const cuitClean = inv.user?.settings?.arca_cuit ? parseInt(inv.user.settings.arca_cuit.replace(/[^0-9]/g, '')) : 0
+  const cuitClean = Number(inv.fiscal_snapshot?.issuer_cuit || inv.user?.settings?.arca_cuit || 0)
   
   // Recipient details
   let tipoDocRec = 99
@@ -59,7 +88,7 @@ function getAfipQrUrl(inv: any) {
   }
   
   // Format date to YYYY-MM-DD
-  const dateObj = new Date(inv.created_at)
+  const dateObj = new Date(showingCredit.value ? inv.nc_issued_at : inv.created_at)
   const yyyy = dateObj.getFullYear()
   const mm = String(dateObj.getMonth() + 1).padStart(2, '0')
   const dd = String(dateObj.getDate()).padStart(2, '0')
@@ -70,15 +99,15 @@ function getAfipQrUrl(inv: any) {
     fecha,
     cuit: cuitClean,
     ptoVta: inv.pto_vta || 1,
-    tipoCmp: inv.cbte_tipo || 11,
-    nroCmp,
+    tipoCmp: showingCredit.value ? ({ 1: 3, 6: 8, 11: 13 } as Record<number, number>)[inv.cbte_tipo || 11] : inv.cbte_tipo || 11,
+    nroCmp: showingCredit.value ? Number(inv.nc_number) : nroCmp,
     importe: Number(inv.total_local),
     moneda: "PES",
     cotiz: 1,
-    tipoDocRec,
-    nroDocRec,
+    tipoDocRec: inv.fiscal_snapshot?.doc_tipo ?? tipoDocRec,
+    nroDocRec: inv.fiscal_snapshot?.doc_nro ?? nroDocRec,
     tipoCodAut: "E",
-    codAut: parseInt(inv.cae) || 0
+    codAut: Number(showingCredit.value ? inv.nc_cae : inv.cae)
   }
   
   const jsonStr = JSON.stringify(qrData)
@@ -98,15 +127,35 @@ function getAfipQrUrl(inv: any) {
         </button>
         <h1 class="page-title">Detalle de Factura</h1>
       </div>
-      <button v-if="invoice" class="btn btn-ghost" @click="printInvoice">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polyline points="6 9 6 2 18 2 18 9"/>
-          <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
-          <rect x="6" y="14" width="12" height="8"/>
-        </svg>
-        Imprimir
-      </button>
+      <div class="flex gap-2">
+        <button v-if="invoice" class="btn btn-ghost" @click="printInvoice" id="btn-print-invoice">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="6 9 6 2 18 2 18 9"/>
+            <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+            <rect x="6" y="14" width="12" height="8"/>
+          </svg>
+          Imprimir
+        </button>
+        <button v-if="invoice" class="btn btn-primary" @click="downloadPdf" :disabled="downloadingPdf" id="btn-download-pdf">
+          <span v-if="downloadingPdf" class="spinner"></span>
+          <template v-else>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            Descargar PDF
+          </template>
+        </button>
+      </div>
     </div>
+
+    <div v-if="invoice?.nc_cae" class="card" style="margin-bottom:1rem">
+      <strong>Factura anulada mediante Nota de Crédito N° {{ invoice.nc_number }} · CAE {{ invoice.nc_cae }}</strong>
+      <p>La anulación fiscal no devuelve automáticamente el cobro. Gestioná la devolución en el medio de pago original.</p>
+      <button class="btn btn-ghost" @click="showingCredit = !showingCredit">{{ showingCredit ? 'Ver factura original' : 'Ver e imprimir nota de crédito' }}</button>
+    </div>
+    <InvoicePaymentPanel v-if="invoice" :invoice="invoice" @updated="invoice = $event" />
 
     <!-- Loading -->
     <div v-if="loading" style="display:flex;justify-content:center;padding:4rem;">
@@ -140,23 +189,27 @@ function getAfipQrUrl(inv: any) {
             </svg>
           </div>
           <div>
-            <div class="inv-company">{{ invoice.user?.settings?.company_name || 'Mi Empresa' }}</div>
+            <div class="inv-company">{{ invoice.fiscal_snapshot?.issuer_name ?? invoice.user?.settings?.company_name ?? 'Mi Empresa' }}</div>
             <div class="inv-details">
-              <div v-if="invoice.user?.settings?.company_address">{{ invoice.user.settings.company_address }}</div>
-              <div>CUIT: {{ invoice.user?.settings?.company_cuit || invoice.user?.settings?.arca_cuit || '00-00000000-0' }}</div>
-              <div>{{ invoice.user?.settings?.tax_condition || 'IVA Responsable Inscripto' }}</div>
+              <div>{{ invoice.fiscal_snapshot?.issuer_address ?? invoice.user?.settings?.company_address }}</div>
+              <div>CUIT: {{ invoice.fiscal_snapshot?.issuer_cuit ?? invoice.user?.settings?.company_cuit ?? invoice.user?.settings?.arca_cuit ?? '00-00000000-0' }}</div>
+              <div>{{ invoice.fiscal_snapshot?.issuer_condition ?? invoice.user?.settings?.tax_condition ?? 'IVA Responsable Inscripto' }}</div>
+              <div v-if="invoice.fiscal_snapshot?.issuer_fiscal_jurisdiction">Jurisdicción: {{ invoice.fiscal_snapshot.issuer_fiscal_jurisdiction }}</div>
+              <div v-if="invoice.fiscal_snapshot?.issuer_business_activity">Actividad: {{ invoice.fiscal_snapshot.issuer_business_activity }}</div>
+              <div v-if="invoice.fiscal_snapshot?.issuer_iibb_number">Ingresos Brutos: {{ invoice.fiscal_snapshot.issuer_iibb_number }}</div>
+              <div v-if="invoice.fiscal_snapshot?.issuer_iibb_condition">Condición IIBB: {{ iibbLabels[invoice.fiscal_snapshot.issuer_iibb_condition] || invoice.fiscal_snapshot.issuer_iibb_condition }}</div>
             </div>
           </div>
         </div>
         <div class="afip-header-right">
           <div class="invoice-type-box">
-            <div class="type-letter">C</div>
-            <div class="type-code">COD. 011</div>
+            <div class="type-letter">{{ invoice.cbte_tipo === 1 ? 'A' : invoice.cbte_tipo === 6 ? 'B' : 'C' }}</div>
+            <div class="type-code">COD. {{ String(showingCredit ? ({ 1: 3, 6: 8, 11: 13 } as Record<number, number>)[invoice.cbte_tipo || 11] : invoice.cbte_tipo || 11).padStart(3, '0') }}</div>
           </div>
           <div class="invoice-title-block">
-            <h2 class="invoice-main-title">FACTURA</h2>
-            <div class="invoice-num-lg">N° {{ String(invoice.invoice_number).padStart(8, '0') }}</div>
-            <div class="invoice-date-lg">FECHA: {{ formatDate(invoice.created_at) }}</div>
+            <h2 class="invoice-main-title">{{ showingCredit ? 'NOTA DE CRÉDITO' : 'FACTURA' }}</h2>
+            <div class="invoice-num-lg">N° {{ showingCredit ? String(invoice.pto_vta).padStart(5, '0') + '-' + String(invoice.nc_number).padStart(8, '0') : invoice.invoice_number }}</div>
+            <div class="invoice-date-lg">FECHA: {{ formatDate(showingCredit ? invoice.nc_issued_at : invoice.created_at) }}</div>
           </div>
         </div>
       </div>
@@ -168,9 +221,9 @@ function getAfipQrUrl(inv: any) {
           <div class="recipient-info">
             <div class="inv-section-title">Destinatario</div>
             <template v-if="invoice.recipient">
-              <div class="recipient-name">{{ invoice.recipient.name }}</div>
-              <div class="recipient-detail"><strong>CUIT:</strong> {{ invoice.recipient.cuit }}</div>
-              <div class="recipient-detail"><strong>Condición IVA:</strong> Consumidor Final</div>
+              <div class="recipient-name">{{ invoice.fiscal_snapshot?.recipient_name || invoice.recipient.name }}</div>
+              <div class="recipient-detail"><strong>Documento:</strong> {{ invoice.fiscal_snapshot?.doc_nro || invoice.recipient.document_id }}</div>
+              <div class="recipient-detail"><strong>Condición IVA:</strong> {{ ivaLabels[invoice.fiscal_snapshot?.condicion_iva_receptor || invoice.recipient.iva_condition_id] || 'Sin dato histórico' }}</div>
               <div v-if="invoice.recipient.address" class="recipient-detail"><strong>Domicilio:</strong> {{ invoice.recipient.address }}</div>
             </template>
             <template v-else>
@@ -213,12 +266,31 @@ function getAfipQrUrl(inv: any) {
             <tbody>
               <tr v-for="item in invoice.items" :key="item.id">
                 <td>
-                  <div class="product-name">{{ item.product?.name ?? 'Producto General' }}</div>
+                  <div class="product-name">{{ item.description_snapshot ?? item.product?.name ?? 'Producto General' }}</div>
                 </td>
                 <td style="text-align:right;">{{ item.quantity }}</td>
                 <td style="text-align:right;">unidades</td>
                 <td style="text-align:right;">{{ formatARS(item.unit_price_usd) }}</td>
                 <td style="text-align:right; font-weight:700;">{{ formatARS(item.unit_price_usd * item.quantity) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div v-if="historicalTributes.length" class="inv-section">
+        <h3 style="font-size:0.95rem;margin-bottom:0.75rem;">Percepciones y tributos</h3>
+        <p v-if="showingCredit" style="font-size:0.8rem;">Esta nota de crédito revierte los siguientes tributos de la factura original.</p>
+        <div class="table-wrap">
+          <table class="afip-table tribute-table">
+            <thead><tr><th>Tipo / Descripción</th><th>Jurisdicción / Padrón</th><th style="text-align:right;">Base</th><th style="text-align:right;">Alícuota</th><th style="text-align:right;">Importe</th></tr></thead>
+            <tbody>
+              <tr v-for="(tribute, index) in historicalTributes" :key="index">
+                <td><strong>{{ tribute.desc }}</strong><div>Tipo ARCA {{ tribute.id }}</div></td>
+                <td>{{ tribute.jurisdiction || '—' }}<div v-if="tribute.padron_reference">Padrón: {{ tribute.padron_reference }}</div></td>
+                <td style="text-align:right;">{{ tribute.base_imp == null ? '—' : formatARS(Number(tribute.base_imp)) }}</td>
+                <td style="text-align:right;">{{ tribute.alicuota == null ? '—' : `${tribute.alicuota}%` }}</td>
+                <td style="text-align:right;font-weight:700;">{{ formatARS(Number(tribute.importe)) }}</td>
               </tr>
             </tbody>
           </table>
@@ -241,13 +313,19 @@ function getAfipQrUrl(inv: any) {
         <div class="footer-right">
           <div class="totals-area">
             <div class="totals-row">
-              <span>Importe Neto / Subtotal:</span>
-              <span>{{ formatARS(invoice.total_local) }}</span>
+              <span>Importe Neto:</span>
+              <span>{{ formatARS(fiscal.net ?? Number(invoice.total_local) - tributeTotal) }}</span>
             </div>
             <div class="totals-row">
               <span>Importe Otros Tributos:</span>
-              <span>$ 0,00</span>
+              <span>{{ formatARS(tributeTotal) }}</span>
             </div>
+            <div class="totals-row"><span>IVA total:</span><span>{{ formatARS(Number(fiscal.vat ?? 0)) }}</span></div>
+            <template v-if="invoice.fiscal_snapshot?.fiscal && invoice.cbte_tipo !== 11">
+              <div v-for="rate in fiscal.rates || []" :key="rate.Id" class="totals-row"><span>IVA {{ ({ 3: 0, 4: 10.5, 5: 21, 6: 27, 8: 5, 9: 2.5 } as Record<number, number>)[rate.Id] }}% (incluido):</span><span>{{ formatARS(rate.Importe) }}</span></div>
+              <div class="totals-row"><span>Exento:</span><span>{{ formatARS(fiscal.exempt ?? 0) }}</span></div>
+              <div class="totals-row"><span>No gravado:</span><span>{{ formatARS(fiscal.untaxed ?? 0) }}</span></div>
+            </template>
             <div class="totals-row grand-total">
               <span>Importe Total:</span>
               <span>{{ formatARS(invoice.total_local) }}</span>
@@ -256,16 +334,43 @@ function getAfipQrUrl(inv: any) {
         </div>
       </div>
 
+      <p v-if="showingCredit">Comprobante asociado: Factura {{ invoice.invoice_number }}</p>
+
+      <!-- Leyenda RG 5003 para Factura A a Monotributistas -->
+      <div v-if="invoice.fiscal_snapshot?.rg5003_legend || (invoice.cbte_tipo === 1 && (invoice.fiscal_snapshot?.condicion_iva_receptor === 6 || invoice.recipient?.iva_condition_id === 6))" class="rg5003-banner">
+        <strong>Nota fiscal (RG 5003/2021):</strong> {{ invoice.fiscal_snapshot?.rg5003_legend || 'El crédito fiscal discriminado en el presente comprobante, sólo podrá ser computado a efectos del Régimen de Sostenimiento e Inclusión Fiscal para Pequeños Contribuyentes de la Ley Nº 27.618' }}
+      </div>
+
       <div class="cae-section" v-if="invoice.cae">
-        <div class="cae-row"><strong>CAE:</strong> <span class="mono">{{ invoice.cae }}</span></div>
-        <div class="cae-row"><strong>Fecha de Vto. de CAE:</strong> {{ formatDate(invoice.cae_expiry) }}</div>
+        <div class="cae-row"><strong>CAE:</strong> <span class="mono">{{ showingCredit ? invoice.nc_cae : invoice.cae }}</span></div>
+        <div class="cae-row"><strong>Fecha de Vto. de CAE:</strong> {{ formatDate(showingCredit ? invoice.nc_cae_expiry : invoice.cae_expiry) }}</div>
+      </div>
+    </div>
+    <div v-if="invoice?.tribute_audits?.length" class="card tribute-audit" style="margin-top:1rem;">
+      <h2 style="font-size:1rem;margin-bottom:0.75rem;">Historial de percepciones y tributos</h2>
+      <p v-if="invoice.cae" class="text-muted" style="font-size:0.8rem;margin-bottom:0.75rem;">Comprobante autorizado: los tributos y sus importes históricos no se pueden modificar.</p>
+      <div v-for="audit in invoice.tribute_audits" :key="audit.id" style="font-size:0.85rem;margin-bottom:0.5rem;">
+        {{ auditLabels[audit.action] || audit.action }} · {{ audit.user?.name || `Usuario ${audit.user_id}` }} · {{ new Date(audit.created_at).toLocaleString('es-AR') }}
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
+.tribute-table { table-layout: fixed; }
+.tribute-table td { overflow-wrap: anywhere; font-size: 0.8rem; }
+@media print { .tribute-audit { display: none !important; } }
 .invoice-sheet { padding: 3rem; max-width: 900px; margin: 0 auto; background: #fff; color: #111; }
+.rg5003-banner {
+  margin: 1.5rem 0 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px dashed #555;
+  background: #fbfbfb;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: #222;
+  border-radius: 4px;
+}
 
 .invoice-topbar {
   display: flex; justify-content: space-between; align-items: stretch;

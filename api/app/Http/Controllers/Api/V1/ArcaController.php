@@ -11,6 +11,20 @@ use Exception;
 
 class ArcaController extends Controller
 {
+    public function tributeTypes(Request $request): JsonResponse
+    {
+        $settings = UserSetting::where('user_id', $request->user()->system_owner_id)->firstOrFail();
+        try {
+            $service = app()->makeWith(\App\Services\AfipService::class, [
+                'cuit' => $settings->arca_cuit, 'cert_path' => $settings->arca_cert_path,
+                'key_path' => $settings->arca_key_path,
+            ]);
+            return response()->json(['tribute_types' => $service->getTributeTypes()]);
+        } catch (\Throwable $e) {
+            return response()->json(['error' => $e->getMessage()], 422);
+        }
+    }
+
     private function getOpenSslArgs()
     {
         $opensslConfigArgs = [];
@@ -37,16 +51,18 @@ class ArcaController extends Controller
         ]);
 
         $cuitClean = preg_replace('/[^0-9]/', '', $validated['cuit']);
-        if (strlen($cuitClean) !== 11) {
-            return response()->json(['error' => 'El CUIT debe tener 11 dígitos.'], 422);
+        if (strlen($cuitClean) !== 11 || !\App\Services\CuitValidator::isValid($cuitClean)) {
+            return response()->json(['error' => 'El CUIT ingresado no es válido (verificá los 11 dígitos y el dígito verificador).'], 422);
         }
 
         if (!function_exists('openssl_pkey_new')) {
             return response()->json(['error' => 'OpenSSL no está disponible en este servidor.'], 500);
         }
 
+        abort_if($request->user()->owner_id, 403, 'Solo el titular puede vincular ARCA.');
         $userId = $request->user()->id;
         $userDir = 'certs/users/' . $userId;
+        if (UserSetting::where('user_id', $userId)->where('arca_connected', true)->exists()) return response()->json(['error' => 'Desvinculá el certificado actual antes de generar una nueva clave.'], 422);
         Storage::disk('local')->makeDirectory($userDir);
         $fullUploadDir = Storage::disk('local')->path($userDir);
 
@@ -93,8 +109,8 @@ class ArcaController extends Controller
     public function uploadCert(Request $request): JsonResponse
     {
         $request->validate([
-            'cert' => 'nullable|file',
-            'cert_text' => 'nullable|string',
+            'cert' => 'nullable|file|max:64',
+            'cert_text' => 'nullable|string|max:65536',
         ]);
 
         $certContent = '';
@@ -129,6 +145,7 @@ class ArcaController extends Controller
 
         openssl_x509_free($cert);
 
+        abort_if($request->user()->owner_id, 403, 'Solo el titular puede vincular ARCA.');
         $userId = $request->user()->id;
         $userDir = 'certs/users/' . $userId;
         
@@ -136,10 +153,17 @@ class ArcaController extends Controller
             return response()->json(['error' => 'No se encontró la clave privada. Generá el CSR primero.'], 422);
         }
 
-        $path = $userDir . '/certificado.crt';
+        $path = $userDir . '/certificado-' . \Illuminate\Support\Str::uuid() . '.crt';
         Storage::disk('local')->put($path, $certContent);
 
         $settings = UserSetting::firstOrCreate(['user_id' => $userId]);
+        try {
+            $service = app()->makeWith(\App\Services\AfipService::class, ['cuit' => $settings->arca_cuit, 'cert_path' => $path, 'key_path' => $settings->arca_key_path]);
+            $service->validateConnection((int) ($settings->arca_pto_vta ?? 1));
+        } catch (\Throwable $e) {
+            Storage::disk('local')->delete($path);
+            return response()->json(['error' => $e->getMessage()], 422);
+        }
         $settings->update([
             'arca_cert_path' => $path,
             'arca_connected' => 1
@@ -148,12 +172,27 @@ class ArcaController extends Controller
         return response()->json(['message' => 'Certificado vinculado con éxito.']);
     }
 
+    public function status(Request $request): JsonResponse
+    {
+        $settings = UserSetting::where('user_id', $request->user()->system_owner_id)->firstOrFail();
+        try {
+            $service = app()->makeWith(\App\Services\AfipService::class, ['cuit' => $settings->arca_cuit, 'cert_path' => $settings->arca_cert_path, 'key_path' => $settings->arca_key_path]);
+            $result = $service->validateConnection((int) ($settings->arca_pto_vta ?? 1));
+            $settings->update(['arca_connected' => true]);
+            return response()->json($result);
+        } catch (\Throwable $e) {
+            $settings->update(['arca_connected' => false]);
+            return response()->json(['connected' => false, 'error' => $e->getMessage()], 422);
+        }
+    }
+
     public function reset(Request $request): JsonResponse
     {
+        abort_if($request->user()->owner_id, 403, 'Solo el titular puede vincular ARCA.');
         $userId = $request->user()->id;
         $userDir = 'certs/users/' . $userId;
 
-        Storage::disk('local')->deleteDirectory($userDir);
+        foreach (Storage::disk('local')->files($userDir) as $file) { Storage::disk('local')->delete($file); }
 
         $settings = UserSetting::where('user_id', $userId)->first();
         if ($settings) {

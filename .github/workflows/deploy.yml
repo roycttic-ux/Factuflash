@@ -17,7 +17,7 @@ jobs:
       - name: 🚀 Subir archivos al servidor
         uses: appleboy/scp-action@v0.1.7
         with:
-          host: TU_HOST_VPS
+          host: ${{ secrets.VPS_HOST }}
           username: ubuntu
           password: ${{ secrets.VPS_PASSWORD }}
           source: "."
@@ -27,7 +27,7 @@ jobs:
       - name: ⚙️ Compilar e instalar dependencias
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: TU_HOST_VPS
+          host: ${{ secrets.VPS_HOST }}
           username: ubuntu
           password: ${{ secrets.VPS_PASSWORD }}
           script: |

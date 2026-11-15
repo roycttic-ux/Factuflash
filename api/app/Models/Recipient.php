@@ -11,13 +11,24 @@ class Recipient extends Model
     use HasFactory;
 
     protected $fillable = [
+        'iva_condition_id',
         'user_id',
         'name',
         'email',
         'phone',
         'document_id',
         'address',
+        'iibb_alicuota',
+        'iibb_exempt',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'iibb_alicuota' => 'decimal:2',
+            'iibb_exempt' => 'boolean',
+        ];
+    }
 
     public function user(): BelongsTo
     {

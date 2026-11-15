@@ -31,6 +31,19 @@ services:
     networks:
       - factuflash_net
 
+  scheduler:
+    image: sistemafacturacion-api
+    restart: always
+    env_file: .env
+    entrypoint: ["sh", "-c"]
+    command: ["while true; do php artisan schedule:run --no-interaction; sleep 60; done"]
+    volumes:
+      - api_storage:/var/www/html/storage
+    depends_on:
+      - api
+    networks:
+      - factuflash_net
+
   # Nginx (Todo en uno: Landing + App)
   nginx:
     build:

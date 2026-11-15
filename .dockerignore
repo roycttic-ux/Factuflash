@@ -8,6 +8,14 @@ dist
 frontend/dist
 storage/*.key
 .env
+.env.*
+**/.env
+**/.env.*
+**/*.key
+**/*.pem
+**/*.crt
+api/storage
+artifacts
 api/.env
 frontend/.env
 *.docx

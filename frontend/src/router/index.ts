@@ -4,7 +4,7 @@ import { useAuthStore } from '@/stores/auth'
 const router = createRouter({
   history: createWebHashHistory(),
   routes: [
-    { path: '/', redirect: '/dashboard' },
+    { path: '/', name: 'inicio', component: () => import('@/views/LandingRedirectView.vue') },
     {
       path: '/catalogo/:id',
       name: 'catalogo',
@@ -44,6 +44,7 @@ const router = createRouter({
         { path: 'suscripcion/exito', name: 'subscription-success', component: () => import('@/views/SubscriptionSuccessView.vue') },
         { path: 'soporte', name: 'soporte', component: () => import('@/views/SupportView.vue') },
         { path: 'admin/usuarios', name: 'admin-usuarios', component: () => import('@/views/AdminUsersView.vue') },
+        { path: 'onboarding', name: 'onboarding', component: () => import('@/views/OnboardingView.vue'), meta: { skipOnboardingCheck: true } },
       ],
     },
   ],
@@ -63,17 +64,27 @@ router.beforeEach(async (to) => {
   if (auth.isAuthenticated && !auth.user) {
     await auth.fetchMe()
   }
+  if (to.meta.requiresAuth && !auth.isAuthenticated) return { name: 'login' }
 
   // Verificar suscripción si requiere auth y no es la página de suscripción o soporte
   if (to.meta.requiresAuth && auth.isAuthenticated && auth.user) {
-    const isOwner = !auth.user.owner_id
-    const isAdminMaster = auth.user.email === 'admin@factuflash.com'
-    const isExpired = auth.user.days_left <= 0 && auth.user.plan_status !== 'active'
-    const isFreePage = to.name === 'suscripcion' || to.name === 'soporte' || to.name === 'admin-usuarios'
+    const isExpired = auth.user.has_access === false
+    const isFreePage = ['suscripcion', 'subscription-success', 'soporte'].includes(String(to.name))
     
     // Solo bloqueamos al dueño del sistema, pero nunca al admin maestro
-    if (isOwner && isExpired && !isAdminMaster && !isFreePage) {
+    if (isExpired && !isFreePage) {
       return { name: 'suscripcion', query: { expired: '1' } }
+    }
+
+    // Onboarding: si el usuario no completó el setup inicial, lo redirigimos
+    const skipOnboarding = to.meta.skipOnboardingCheck
+    const isOnboardingPage = to.name === 'onboarding'
+    if (!skipOnboarding && !isOnboardingPage && !isExpired && auth.user.role !== 'cashier') {
+      // Verificamos si hay settings y si el onboarding está completo
+      const settings = auth.user.settings
+      if (settings && settings.onboarding_complete === false) {
+        return { name: 'onboarding' }
+      }
     }
   }
 })

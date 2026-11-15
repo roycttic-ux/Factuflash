@@ -2,8 +2,10 @@
 import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { subscriptionApi } from '@/api/services'
+import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
+const auth = useAuthStore()
 
 const plans = ref<Record<string, any>>({})
 const loading = ref(true)
@@ -11,8 +13,12 @@ const processing = ref(false)
 const error = ref('')
 const mpNotConfigured = ref(false)
 
-const selectedPlan = ref(route.query.plan as string || '')
+const selectedPlan = ref(route.query.plan === 'annual' || route.query.plan === 'yearly' ? 'annual' : 'monthly')
 const subscriptionStatus = ref<any>(null)
+function price(plan: string) {
+  const amount = plans.value[plan]?.price
+  return typeof amount === 'number' ? amount.toLocaleString('es-AR') : '—'
+}
 
 function formatDate(date: string) {
   if (!date) return ''
@@ -23,6 +29,7 @@ async function loadStatus() {
   try {
     const res = await subscriptionApi.status()
     subscriptionStatus.value = res.data
+    await auth.fetchMe()
   } catch (err) {
     console.error('Error al cargar estado', err)
   }
@@ -53,18 +60,14 @@ onMounted(async () => {
     }
     error.value = '' // Limpiar error si carga bien
   } catch (err) {
-    console.warn('API de planes falló, usando fallback local.', err)
-    // No mostramos error al usuario si ya tenemos los planes hardcoded visibles
-    if (!plans.value || Object.keys(plans.value).length === 0) {
-       // Solo si realmente no hay nada que mostrar
-    }
+    error.value = 'No pudimos consultar los planes. Recargá la página para ver los precios e iniciar el pago.'
   } finally {
     loading.value = false
   }
 })
 
 async function checkout() {
-  if (!selectedPlan.value) return
+  if (!selectedPlan.value || !plans.value[selectedPlan.value]) return
   processing.value = true
   error.value = ''
   mpNotConfigured.value = false
@@ -73,6 +76,8 @@ async function checkout() {
     const res = await subscriptionApi.checkout(selectedPlan.value)
     if (res.data.checkout_url) {
       window.location.href = res.data.checkout_url
+    } else {
+      error.value = 'No se pudo generar el enlace de pago. Intentá nuevamente.'
     }
   } catch (err: any) {
     const msg = err?.response?.data?.error ?? ''
@@ -102,7 +107,7 @@ async function checkout() {
           <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
         </div>
         <div class="paywall-text">
-          <h2>Tu periodo de prueba ha finalizado</h2>
+          <h2>Tu período de acceso ha finalizado</h2>
           <p>Para seguir gestionando tu negocio con FactuFlash, elegí un plan y activá tu suscripción.</p>
         </div>
       </div>
@@ -126,10 +131,11 @@ async function checkout() {
           <div class="sub-title">ESTADO ACTUAL: <span class="status-active">ACTIVA</span></div>
           <p class="sub-desc">
             <strong>{{ subscriptionStatus.plan === 'annual' ? 'Plan Anual' : 'Plan Mensual' }}</strong> activo. 
-            Próxima renovación: <strong>{{ formatDate(subscriptionStatus.current_period_end) }}</strong>
+            Acceso abonado hasta: <strong>{{ formatDate(subscriptionStatus.current_period_end) }}</strong>
           </p>
         </div>
         <button 
+          v-if="subscriptionStatus.can_cancel"
           @click="cancelSubscription" 
           class="btn-cancel-sub" 
           :disabled="processing"
@@ -137,7 +143,7 @@ async function checkout() {
           {{ processing ? 'Procesando...' : 'Cancelar renovación automática' }}
         </button>
       </div>
-      <div class="sub-footer-note">
+      <div v-if="subscriptionStatus.can_cancel" class="sub-footer-note">
         * Al cancelar, dejarás de recibir cargos automáticos pero mantendrás el acceso hasta el final de tu periodo actual.
       </div>
     </div>
@@ -165,7 +171,7 @@ async function checkout() {
           </div>
           <div class="plan-price">
             <span class="currency">$</span>
-            <span class="amount">35.000</span>
+            <span class="amount">{{ price('monthly') }}</span>
             <span class="period">/ mes</span>
           </div>
           <div class="plan-divider"></div>
@@ -189,17 +195,17 @@ async function checkout() {
           :class="{ selected: selectedPlan === 'annual' }"
           @click="selectedPlan = 'annual'"
         >
-          <div class="plan-save-tag">AHORRÁS $100.000</div>
+          <div class="plan-save-tag">12 MESES DE ACCESO</div>
           <div class="plan-header">
             <div class="plan-icon-top">
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
             </div>
             <h3 class="plan-name">Plan Anual</h3>
-            <p class="plan-tagline">Ahorrá y congelá precio por un año</p>
+            <p class="plan-tagline">Pagá un año completo por adelantado</p>
           </div>
           <div class="plan-price">
             <span class="currency">$</span>
-            <span class="amount-gold-text">320.000</span>
+            <span class="amount-gold-text">{{ price('annual') }}</span>
             <span class="period">/ año</span>
           </div>
           <div class="plan-divider gold"></div>
@@ -226,9 +232,7 @@ async function checkout() {
           </div>
           <div class="alert-content">
             <strong>Configuración pendiente</strong>
-            <p>Necesitás conectar tu cuenta de Mercado Pago para procesar el pago. 
-               <RouterLink to="/configuracion" class="alert-link">Ir a Integraciones →</RouterLink>
-            </p>
+            <p>El cobro de suscripciones no está disponible en este momento. Contactá al soporte de FactuFlash para que lo revise.</p>
           </div>
         </div>
       </Transition>
@@ -251,13 +255,13 @@ async function checkout() {
           <div class="selected-label">PLAN SELECCIONADO</div>
           <div class="selected-value">
             {{ selectedPlan === 'annual' ? 'Plan Anual' : 'Plan Mensual' }} 
-            <span class="final-price">{{ selectedPlan === 'annual' ? '$320.000/año' : '$35.000/mes' }}</span>
+            <span class="final-price">${{ price(selectedPlan) }} / {{ selectedPlan === 'annual' ? 'año' : 'mes' }}</span>
           </div>
         </div>
         <button
           class="btn-pay-premium"
           :class="{ processing: processing }"
-          :disabled="processing"
+          :disabled="processing || !plans[selectedPlan]"
           @click="checkout"
         >
           <span v-if="processing" class="loader-white"></span>

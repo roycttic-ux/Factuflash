@@ -1,0 +1,12 @@
+.env
+.env.*
+vendor
+node_modules
+storage
+bootstrap/cache/*.php
+database/*.sqlite
+*.log
+*.sql
+.git
+public/storage
+public/downloads

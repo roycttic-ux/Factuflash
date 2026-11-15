@@ -8,43 +8,25 @@ use App\Models\UserSetting;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
 
 class MercadoPagoController extends Controller
 {
     public function createPreference(Request $request): JsonResponse
     {
-        $user = $request->user();
-        $settings = $user->settings;
-
-        // Prioridad: token del .env > token guardado en BD
-        $mpToken = env('MP_ACCESS_TOKEN') ?? $settings?->mp_access_token;
-
-        if (!$mpToken) {
-            return response()->json(['error' => 'Mercado Pago no está configurado'], 422);
-        }
-
-        $items = $request->input('items', []);
-        $invoiceId = $request->input('invoice_id');
-
+        $data = $request->validate(['invoice_id' => 'required|integer|min:1']);
+        $invoice = Invoice::where('user_id', $request->user()->system_owner_id)->findOrFail($data['invoice_id']);
+        if ($invoice->status !== 'pending') return response()->json(['error' => 'La factura no está pendiente.'], 422);
+        $mpToken = $this->merchantToken($invoice);
+        if (!$mpToken) return response()->json(['error' => 'Configurá Mercado Pago para este comercio.'], 422);
         $preferenceData = [
-            'items' => array_map(function($item) {
-                return [
-                    'title' => $item['name'],
-                    'quantity' => (int) $item['quantity'],
-                    'unit_price' => (float) $item['price_ars'],
-                    'currency_id' => 'ARS'
-                ];
-            }, $items),
-            'external_reference' => (string) $invoiceId,
-            'notification_url' => route('mp.webhook'),
-            'back_urls' => [
-                'success' => url('/#/facturas/' . $invoiceId),
-                'failure' => url('/#/facturas/' . $invoiceId),
-            ],
-            'auto_return' => 'approved',
+            'items' => [[
+                'title' => 'Factura ' . $invoice->invoice_number, 'quantity' => 1,
+                'unit_price' => round((float) $invoice->total_local - (float) $invoice->payments()->sum('amount'), 2),
+                'currency_id' => 'ARS',
+            ]],
+            'external_reference' => 'invoice_' . $invoice->id,
+            'notification_url' => route('mp.webhook', ['invoice_id' => $invoice->id]),
         ];
-
         $response = Http::withToken($mpToken)
             ->post('https://api.mercadopago.com/checkout/preferences', $preferenceData);
 
@@ -57,98 +39,140 @@ class MercadoPagoController extends Controller
 
     public function createSubscriptionPreference(Request $request): JsonResponse
     {
-        $user = $request->user();
-        $mpToken = env('MP_ACCESS_TOKEN');
-
-        if (!$mpToken) {
-            return response()->json(['error' => 'Mercado Pago no está configurado en el servidor'], 422);
-        }
-
-        $plan = $request->input('plan'); // 'monthly' o 'yearly'
-        
-        $planData = [
-            'monthly' => ['title' => 'Plan Mensual FactuFlash', 'price' => 35000.00],
-            'yearly'  => ['title' => 'Plan Anual FactuFlash (2 meses gratis)', 'price' => 310000.00]
-        ];
-
-        if (!isset($planData[$plan])) {
-            return response()->json(['error' => 'Plan inválido'], 422);
-        }
-
-        $preferenceData = [
-            'items' => [
-                [
-                    'title' => $planData[$plan]['title'],
-                    'quantity' => 1,
-                    'unit_price' => $planData[$plan]['price'],
-                    'currency_id' => 'ARS'
-                ]
-            ],
-            'external_reference' => 'SUB_' . $user->id . '_' . $plan . '_' . time(),
-            'notification_url' => route('mp.webhook'),
-            'back_urls' => [
-                'success' => url('/#/configuracion?payment=success'),
-                'failure' => url('/#/configuracion?payment=failure'),
-            ],
-            'auto_return' => 'approved',
-        ];
-
-        $response = Http::withToken($mpToken)
-            ->post('https://api.mercadopago.com/checkout/preferences', $preferenceData);
-
-        if ($response->failed()) {
-            return response()->json(['error' => 'Error al crear preferencia'], 500);
-        }
-
-        return response()->json($response->json());
+        // Keep old clients on the same verified subscription flow and prices.
+        if ($request->input('plan') === 'yearly') $request->merge(['plan' => 'annual']);
+        return app(SubscriptionController::class)->createCheckout($request);
     }
 
     public function createPointPaymentIntent(Request $request): JsonResponse
     {
-        $user = $request->user();
-        $settings = $user->settings;
-        $mpToken = env('MP_ACCESS_TOKEN') ?? $settings?->mp_access_token;
+        $data = $request->validate(['invoice_id' => 'required|integer|min:1', 'device_id' => 'required|string']);
+        $owner = $request->user()->system_owner_id;
+        $device = \App\Models\PosDevice::where('user_id', $owner)->where('external_id', $data['device_id'])
+            ->where('type', 'mercadopago_point')->where('is_active', true)->firstOrFail();
+        $invoice = Invoice::where('user_id', $owner)->findOrFail($data['invoice_id']);
+        $token = $this->merchantToken($invoice);
+        if (!$token) return response()->json(['error' => 'Configurá el access token de Mercado Pago de este comercio.'], 422);
 
-        if (!$mpToken) {
-            return response()->json(['error' => 'Mercado Pago no está configurado'], 422);
+        // Persist the retry key before contacting the provider, including ambiguous timeouts.
+        \Illuminate\Support\Facades\DB::transaction(function () use ($invoice, $device) {
+            $locked = Invoice::whereKey($invoice->id)->lockForUpdate()->firstOrFail();
+            abort_if($locked->status !== 'pending', 422, 'La factura no está pendiente.');
+            abort_if($locked->pos_device_id && $locked->pos_device_id !== $device->id, 422, 'La factura ya tiene otro dispositivo vinculado.');
+            $locked->update(['pos_device_id' => $device->id, 'point_request_key' => $locked->point_request_key ?: (string) \Illuminate\Support\Str::uuid()]);
+        });
+        $invoice->refresh();
+        if ($invoice->point_order_id) return response()->json(['id' => $invoice->point_order_id, 'invoice_id' => $invoice->id]);
+        $amount = (float) $invoice->total_local - (float) $invoice->payments()->sum('amount');
+        $response = Http::withToken($token)->timeout(20)
+            ->withHeaders(['X-Idempotency-Key' => $invoice->point_request_key])
+            ->post('https://api.mercadopago.com/v1/orders', [
+                'type' => 'point',
+                'external_reference' => 'invoice_' . $invoice->id,
+                'transactions' => ['payments' => [['amount' => number_format($amount, 2, '.', '')]]],
+                'description' => 'Factura ' . $invoice->invoice_number,
+                'config' => ['point' => ['terminal_id' => $device->external_id, 'print_on_terminal' => 'no_ticket']],
+            ]);
+        if (!$response->successful() || !$response->json('id')) {
+            return response()->json(['error' => 'No se confirmó el envío al Point. Consultá el estado antes de volver a cobrar.'], 502);
         }
+        $invoice->update(['point_order_id' => $response->json('id')]);
+        return response()->json(['id' => $invoice->point_order_id, 'invoice_id' => $invoice->id]);
+    }
 
-        $deviceId = $request->input('device_id');
-        $amount = (float) $request->input('amount');
-        $invoiceId = $request->input('invoice_id');
+    private function merchantToken(Invoice $invoice): ?string
+    {
+        // Never use the platform subscription credentials to collect a merchant's sales.
+        return UserSetting::where('user_id', $invoice->user_id)->value('mp_access_token');
+    }
 
-        $intentData = [
-            'amount' => $amount,
-            'description' => 'Pago Factura #' . $invoiceId,
-            'external_reference' => (string) $invoiceId,
-            'notification_url' => route('mp.webhook'),
-        ];
+    private function applyPayment(Invoice $invoice, array $payment): bool
+    {
+        if (($payment['status'] ?? '') !== 'approved' || ($payment['currency_id'] ?? '') !== 'ARS'
+            || ($payment['external_reference'] ?? '') !== 'invoice_' . $invoice->id
+            || empty($payment['id']) || !isset($payment['transaction_amount'])
+            || (float) ($payment['transaction_amount_refunded'] ?? 0) > 0) return false;
+        app(\App\Services\InvoicePaymentService::class)->confirm(
+            $invoice, 'mp:' . $payment['id'], (float) $payment['transaction_amount'],
+            'Verificado en Mercado Pago. Pago ' . $payment['id']
+        );
+        return true;
+    }
 
-        // API de Point: https://www.mercadopago.com.ar/developers/es/reference/integrations_api/_point_integration-api_devices_device-id_payment-intents/post
-        $response = Http::withToken($mpToken)
-            ->post("https://api.mercadopago.com/point/integration-api/devices/{$deviceId}/payment-intents", $intentData);
+    private function applyOrder(Invoice $invoice, array $order): bool
+    {
+        if (($order['type'] ?? '') !== 'point' || ($order['country_code'] ?? '') !== 'ARG'
+            || ($order['external_reference'] ?? '') !== 'invoice_' . $invoice->id
+            || ($order['status'] ?? '') !== 'processed' || ($order['status_detail'] ?? '') !== 'processed'
+            || ($order['id'] ?? '') !== $invoice->point_order_id) return false;
+        $payments = data_get($order, 'transactions.payments', []);
+        if (count($payments) !== 1) return false;
+        $payment = $payments[0];
+        if (($payment['status'] ?? '') !== 'processed' || ($payment['status_detail'] ?? '') !== 'accredited'
+            || empty($payment['id']) || !isset($payment['amount'])) return false;
+        app(\App\Services\InvoicePaymentService::class)->confirm(
+            $invoice, 'mp:' . $payment['id'], (float) $payment['amount'], 'Verificado en Mercado Pago Point. Orden ' . $order['id']
+        );
+        return true;
+    }
 
-        if ($response->failed()) {
-            return response()->json([
-                'error' => 'Error al enviar orden al dispositivo',
-                'details' => $response->json()
-            ], $response->status());
+    public function paymentStatus(Request $request, int $id): JsonResponse
+    {
+        $invoice = Invoice::where('user_id', $request->user()->system_owner_id)->findOrFail($id);
+        if ($invoice->status === 'pending') {
+            $token = $this->merchantToken($invoice);
+            if (!$token) return response()->json(['error' => 'Mercado Pago no está configurado para este comercio.'], 422);
+            if ($invoice->point_order_id) {
+                $response = Http::withToken($token)->timeout(15)->get('https://api.mercadopago.com/v1/orders/' . rawurlencode($invoice->point_order_id));
+                if (!$response->successful()) return response()->json(['error' => 'No se pudo consultar Mercado Pago. La factura sigue pendiente.'], 502);
+                $this->applyOrder($invoice, $response->json());
+                return response()->json(['invoice' => $invoice->fresh()->load('payments'), 'provider_status' => $response->json('status')]);
+            }
+            $response = Http::withToken($token)->timeout(15)->get('https://api.mercadopago.com/v1/payments/search', [
+                'external_reference' => 'invoice_' . $invoice->id,
+                'sort' => 'date_created', 'criteria' => 'desc', 'limit' => 100,
+            ]);
+            if (!$response->successful()) return response()->json(['error' => 'No se pudo consultar Mercado Pago. La factura sigue pendiente.'], 502);
+            foreach ($response->json('results', []) as $payment) {
+                if ($this->applyPayment($invoice, $payment)) break;
+            }
         }
-
-        return response()->json($response->json());
+        return response()->json(['invoice' => $invoice->fresh()->load('payments')]);
     }
 
     public function webhook(Request $request): JsonResponse
     {
-        $data = $request->all();
-        Log::info("MP Webhook received:", $data);
-        
-        // Manejar notificaciones de Point y Checkout
-        if (isset($data['action']) && $data['action'] === 'payment.created') {
-            // Es una notificación de un pago creado (posiblemente desde Point)
-            // Aquí se debería consultar el estado final del pago y marcar la factura
+        // The notification is only a hint. Only the authenticated provider API can approve a payment.
+        $type = $request->input('type', $request->input('topic'));
+        if ($type === 'order') {
+            $data = $request->validate(['data.id' => 'required|string|regex:/^[A-Za-z0-9]+$/']);
+            $invoice = Invoice::where('point_order_id', $data['data']['id'])->first();
+            if (!$invoice) return response()->json(['error' => 'Orden aún no registrada. Reintentar notificación.'], 503);
+            $token = $this->merchantToken($invoice);
+            if (!$token) return response()->json(['error' => 'Comercio sin configurar'], 422);
+            $response = Http::withToken($token)->timeout(15)->get('https://api.mercadopago.com/v1/orders/' . rawurlencode($invoice->point_order_id));
+            if (!$response->successful()) return response()->json(['error' => 'No se pudo verificar la orden'], 502);
+            $this->applyOrder($invoice, $response->json());
+            return response()->json(['status' => 'ok']);
         }
-
+        if ($type !== 'payment') return response()->json(['status' => 'ignored']);
+        $data = $request->validate([
+            'invoice_id' => 'required_without:merchant_id|integer|min:1',
+            'merchant_id' => 'required_without:invoice_id|integer|min:1',
+            'data.id' => 'required|regex:/^[0-9]+$/',
+        ]);
+        $invoice = isset($data['invoice_id']) ? Invoice::findOrFail($data['invoice_id']) : null;
+        $owner = $invoice?->user_id ?? $data['merchant_id'];
+        $token = UserSetting::where('user_id', $owner)->value('mp_access_token');
+        if (!$token) return response()->json(['error' => 'Comercio sin configurar'], 422);
+        $response = Http::withToken($token)->timeout(15)->get('https://api.mercadopago.com/v1/payments/' . $data['data']['id']);
+        if (!$response->successful()) return response()->json(['error' => 'No se pudo verificar el pago'], 502);
+        if (!$invoice) {
+            $reference = (string) $response->json('external_reference');
+            if (!preg_match('/^invoice_([0-9]+)$/', $reference, $matches)) return response()->json(['status' => 'ignored']);
+            $invoice = Invoice::where('user_id', $owner)->findOrFail($matches[1]);
+        }
+        $this->applyPayment($invoice, $response->json());
         return response()->json(['status' => 'ok']);
     }
 }

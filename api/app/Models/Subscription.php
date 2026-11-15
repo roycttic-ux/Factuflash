@@ -19,6 +19,10 @@ class Subscription extends Model
         'status',
         'start_date',
         'next_payment_date',
+        'plan',
+        'external_reference',
+        'checkout_url',
+        'last_verified_at',
     ];
 
     protected function casts(): array
@@ -27,6 +31,7 @@ class Subscription extends Model
             'amount' => 'decimal:2',
             'start_date' => 'date',
             'next_payment_date' => 'date',
+            'last_verified_at' => 'datetime',
         ];
     }
 

@@ -2,7 +2,7 @@
 FROM node:20 AS build-stage
 WORKDIR /app
 COPY frontend/package*.json ./
-RUN npm install
+RUN npm ci
 COPY frontend/ ./
 RUN npm run build
 
@@ -20,6 +20,7 @@ COPY frontend/landing /var/www/html/landing
 
 # Copiar la App (compilada en ETAPA 1)
 COPY --from=build-stage /app/dist /var/www/html/app
+RUN chmod -R a+rX /var/www/html
 
 # Copiar los certificados SSL (si existen)
 # COPY docker/nginx/ssl /etc/nginx/ssl

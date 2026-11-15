@@ -15,6 +15,7 @@ class InvoicePayment extends Model
         'payment_method',
         'amount',
         'details',
+        'transaction_id',
     ];
 
     protected function casts(): array

@@ -11,8 +11,8 @@ use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
     // Auth (públicas)
-    Route::post('/auth/register', [AuthController::class, 'register']);
-    Route::post('/auth/login', [AuthController::class, 'login']);
+    Route::post('/auth/register', [AuthController::class, 'register'])->middleware('throttle:auth-register');
+    Route::post('/auth/login', [AuthController::class, 'login'])->middleware('throttle:auth-login')->name('login');
 
     // Catálogo Público
     Route::get('/public/catalog/{userId}', [\App\Http\Controllers\Api\V1\CatalogController::class, 'show']);
@@ -39,12 +39,16 @@ Route::prefix('v1')->group(function () {
         Route::get('/customers/{id}', [RecipientController::class, 'show']);
         Route::put('/customers/{id}', [RecipientController::class, 'update']);
         Route::delete('/customers/{id}', [RecipientController::class, 'destroy']);
+        Route::get('/padron/{cuit}', [\App\Http\Controllers\Api\V1\PadronController::class, 'lookup']);
 
         // Invoices
         Route::get('/invoices', [InvoiceController::class, 'index']);
         Route::post('/invoices', [InvoiceController::class, 'store']);
         Route::get('/invoices/{id}', [InvoiceController::class, 'show']);
         Route::delete('/invoices/{id}', [InvoiceController::class, 'destroy']);
+        Route::get('/invoices/{id}/pdf', [InvoiceController::class, 'downloadPdf']);
+        Route::get('/invoices/export/excel', [InvoiceController::class, 'exportExcel']);
+        Route::get('/invoices/export/zip', [InvoiceController::class, 'exportZip']);
 
         // Dashboard
         Route::get('/dashboard/stats', [DashboardController::class, 'stats']);
@@ -58,7 +62,10 @@ Route::prefix('v1')->group(function () {
         Route::get('/settings', [SettingsController::class, 'show']);
         Route::put('/settings', [SettingsController::class, 'update']);
         Route::post('/settings/logo', [SettingsController::class, 'uploadLogo']);
+        Route::post('/settings/onboarding-complete', [SettingsController::class, 'completeOnboarding']);
 
+        Route::get('/arca/status', [ArcaController::class, 'status']);
+        Route::get('/arca/tribute-types', [ArcaController::class, 'tributeTypes']);
         // ARCA
         Route::post('/arca/csr', [ArcaController::class, 'generateCsr']);
         Route::post('/arca/cert', [ArcaController::class, 'uploadCert']);
@@ -77,6 +84,7 @@ Route::prefix('v1')->group(function () {
         // Mercado Pago
         Route::post('/mp/preference', [\App\Http\Controllers\Api\V1\MercadoPagoController::class, 'createPreference']);
         Route::post('/mp/point-intent', [\App\Http\Controllers\Api\V1\MercadoPagoController::class, 'createPointPaymentIntent']);
+        Route::get('/mp/invoices/{id}/status', [\App\Http\Controllers\Api\V1\MercadoPagoController::class, 'paymentStatus'])->middleware('throttle:30,1');
         Route::post('/mp/subscription-preference', [\App\Http\Controllers\Api\V1\MercadoPagoController::class, 'createSubscriptionPreference']);
 
         // Suscripciones

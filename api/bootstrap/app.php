@@ -13,7 +13,12 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->trustProxies(at: '*');
+        $middleware->redirectGuestsTo(fn () => null);
         $middleware->appendToGroup('api', \App\Http\Middleware\CheckSubscription::class);
+        $middleware->appendToPriorityList(
+            \Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests::class,
+            \App\Http\Middleware\CheckSubscription::class
+        );
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

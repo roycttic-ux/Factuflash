@@ -18,7 +18,7 @@ const confirmDelete = ref<any | null>(null)
 const expandedId = ref<number | null>(null)
 
 const form = reactive({ 
-  sku: '', name: '', description: '', cost_usd: '', stock: '', 
+  sku: '', name: '', description: '', cost_usd: '', iva_id: '', stock: '',
   unlimited_stock: false, min_stock_alert: '5', category: '',
   tags: '', 
   variants: [] as { name: string, value: string, stock: number, image_url?: string }[] 
@@ -191,7 +191,7 @@ function addNewTag() {
 function openCreate() {
   editing.value = null
   Object.assign(form, { 
-    sku: '', name: '', description: '', cost_usd: '', stock: '', 
+    sku: '', name: '', description: '', cost_usd: '', iva_id: '', stock: '',
     unlimited_stock: false, min_stock_alert: '5', category: '',
     tags: '', variants: []
   })
@@ -209,6 +209,7 @@ function openEdit(p: any) {
     name: p.name,
     description: p.description ?? '',
     cost_usd: p.cost_usd,
+    iva_id: p.iva_id ?? '',
     stock: p.stock,
     unlimited_stock: !!p.unlimited_stock,
     min_stock_alert: p.min_stock_alert,
@@ -276,6 +277,7 @@ async function save() {
     fd.append('name', form.name)
     fd.append('description', form.description)
     fd.append('cost_usd', String(form.cost_usd))
+    fd.append('iva_id', String(form.iva_id))
     fd.append('stock', String(form.stock))
     fd.append('unlimited_stock', form.unlimited_stock ? '1' : '0')
     fd.append('min_stock_alert', String(form.min_stock_alert))
@@ -472,7 +474,7 @@ function stockStatus(p: any) {
               </div>
             <div class="grid-2">
               <div class="form-group">
-                <label class="form-label">Precio ARS *</label>
+                <label class="form-label">Precio final ARS (IVA incluido) *</label>
                 <input v-model="form.cost_usd" class="form-input" type="number" step="1" min="0" placeholder="0" required />
               </div>
               <div class="form-group">
@@ -486,6 +488,8 @@ function stockStatus(p: any) {
               </div>
             </div>
             <div class="form-group">
+              <label class="form-label">IVA del producto (obligatorio para emitir A/B)</label>
+              <select v-model="form.iva_id" class="form-select"><option value="">Sin configurar / emisor monotributista</option><option value="5">21%</option><option value="4">10,5%</option><option value="6">27%</option><option value="8">5%</option><option value="9">2,5%</option><option value="3">0%</option><option value="2">Exento</option><option value="1">No gravado</option></select>
               <label class="form-label">Alerta stock mínimo</label>
               <input v-model="form.min_stock_alert" class="form-input" type="number" min="0" placeholder="5" />
             </div>

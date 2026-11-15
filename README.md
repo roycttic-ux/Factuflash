@@ -93,6 +93,8 @@ Para revisar el proyecto de forma rápida, puedes importar el archivo `base_de_d
 
 Una vez levantado el frontend y el backend (siguiendo los pasos anteriores), puedes ingresar al sistema con el siguiente usuario Administrador que tiene acceso completo a todas las funciones:
 
+> Cuenta de demostración para la base local incluida; no usar en producción.
+
 - **Usuario:** Profesor
 - **Email:** `profe@factuflash.com`
 - **Contraseña:** `profe123`
@@ -103,14 +105,7 @@ Una vez levantado el frontend y el backend (siguiendo los pasos anteriores), pue
 
 El proyecto utiliza Docker para los despliegues en producción sobre un servidor VPS. 
 
-> [!NOTE]  
-> Si vas a desplegar a producción usando la arquitectura monorepo original, puedes usar los scripts incluidos:
-
-### Acceso al VPS
-```bash
-ssh ubuntu@TU_HOST_VPS
-```
-*(Los datos de acceso han sido dejados intencionalmente ya que el repositorio original será privado).*
+Para desplegar, configura el host y las credenciales en tu entorno local. No publiques direcciones ni claves de acceso al servidor.
 
 ### Scripts de Despliegue
 Puedes ejecutar los siguientes scripts desde PowerShell en Windows:

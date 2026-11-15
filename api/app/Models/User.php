@@ -17,6 +17,8 @@ class User extends Authenticatable
         'email',
         'password',
         'company_name',
+        'expected_monthly_invoices',
+        'simultaneous_registers',
         'phone',
         'cuit',
         'cert_path',
@@ -26,6 +28,7 @@ class User extends Authenticatable
         'logo_path',
         'plan_status',
         'trial_expires_at',
+        'paid_until',
         'owner_id',
         'cash_register_name',
         'api_token',
@@ -36,7 +39,7 @@ class User extends Authenticatable
         'remember_token',
     ];
 
-    protected $appends = ['days_left', 'system_owner_id'];
+    protected $appends = ['days_left', 'system_owner_id', 'has_access'];
 
     public function getSystemOwnerIdAttribute()
     {
@@ -49,14 +52,26 @@ class User extends Authenticatable
         return [
             'password' => 'hashed',
             'trial_expires_at' => 'datetime',
+            'paid_until' => 'datetime',
         ];
     }
 
     public function getDaysLeftAttribute()
     {
-        if (!$this->trial_expires_at) return 0;
-        $diff = now()->diffInDays($this->trial_expires_at, false);
-        return $diff > 0 ? (int)round($diff) : 0;
+        $end = $this->paid_until;
+        if ($this->trial_expires_at && (!$end || $this->trial_expires_at->greaterThan($end))) {
+            $end = $this->trial_expires_at;
+        }
+        return $end ? max(0, (int) ceil(now()->diffInDays($end, false))) : 0;
+    }
+
+    public function getHasAccessAttribute(): bool
+    {
+        if ($this->owner_id) return (bool) self::find($this->owner_id)?->has_access;
+        return $this->role === 'admin'
+            || $this->email === 'admin@factuflash.com'
+            || ($this->paid_until && $this->paid_until->isFuture())
+            || ($this->trial_expires_at && $this->trial_expires_at->isFuture());
     }
 
     public function products(): HasMany

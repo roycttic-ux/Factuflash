@@ -20,17 +20,33 @@ class CatalogController extends Controller
             $user = $settings ? $settings->user : null;
         }
 
-        if (!$user) {
+        if (!$user || !$user->settings) {
             return response()->json(['error' => 'Vendedor no encontrado'], 404);
         }
 
+        $showStock = (bool) $user->settings->catalog_show_stock;
+        $showPrice = (bool) $user->settings->catalog_show_price;
         $products = Product::where('user_id', $user->id)
             ->where(function($q) {
                 $q->where('stock', '>', 0)
                   ->orWhere('unlimited_stock', true);
             })
             ->orderBy('name', 'asc')
-            ->get();
+            ->get()
+            ->map(function (Product $product) use ($showStock, $showPrice) {
+                $public = $product->only(['id', 'name', 'description', 'category', 'tags', 'image_url', 'images']);
+                $public['variants'] = collect($product->variants ?? [])->map(function ($variant) use ($showStock) {
+                    return \Illuminate\Support\Arr::only((array) $variant, $showStock
+                        ? ['id', 'name', 'value', 'image_url', 'stock']
+                        : ['id', 'name', 'value', 'image_url']);
+                })->values()->all();
+                if ($showPrice) $public['cost_usd'] = $product->cost_usd;
+                if ($showStock) {
+                    $public['stock'] = $product->stock;
+                    $public['unlimited_stock'] = $product->unlimited_stock;
+                }
+                return $public;
+            });
 
         return response()->json([
             'company' => [
